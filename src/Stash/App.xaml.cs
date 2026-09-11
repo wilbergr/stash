@@ -37,6 +37,7 @@ public partial class App : Application
     private StashWindow _stashWindow = null!;
     private TrayIcon _tray = null!;
     private SettingsWindow? _settingsWindow;
+    private HelpWindow? _helpWindow;
 
     /// <summary>
     /// False until OnStartup finishes. Decides whether an unhandled exception is
@@ -58,6 +59,17 @@ public partial class App : Application
 
         DispatcherUnhandledException += OnUnhandledException;
 
+        // History is written on a debounced timer, and OnExit is not guaranteed
+        // to run when Windows shuts down or signs the user out — it may simply
+        // terminate the process. Without this, the last couple of seconds of
+        // clips would be lost across a reboot.
+        SessionEnding += (_, _) =>
+        {
+            AppPaths.Log("Session ending; flushing history.");
+            _history?.FlushIfDirty();
+            _settings?.Save();
+        };
+
         AppPaths.EnsureCreated();
         AppPaths.Log("Stash starting.");
 
@@ -78,6 +90,7 @@ public partial class App : Application
         _stashViewModel = new StashViewModel(_history, _paste, _thumbnails, _settings);
         _stashWindow = new StashWindow(_stashViewModel, _settings);
         _stashWindow.SettingsRequested += ShowSettings;
+        _stashWindow.HelpRequested += ShowHelp;
 
         _hotkeys = new HotkeyService(_messageWindow);
         _hotkeys.Pressed += OnHotkeyPressed;
@@ -86,6 +99,7 @@ public partial class App : Application
         _tray = new TrayIcon(_settings);
         _tray.OpenRequested += () => ShowPanel();
         _tray.SettingsRequested += ShowSettings;
+        _tray.HelpRequested += ShowHelp;
         _tray.DockRequested += edge => _stashWindow.DockTo(edge);
         _tray.ClearRequested += ClearHistory;
         _tray.QuitRequested += Shutdown;
@@ -108,6 +122,14 @@ public partial class App : Application
             _tray.ShowMessage(
                 "Stash is running, but has no hotkey",
                 "Every candidate chord is already in use. Open Stash from this tray icon, or pick a different hotkey in Settings.");
+        }
+        else if (_settings.IsFirstRun)
+        {
+            // A tray-only app is invisible until you know the chord. A balloon
+            // rather than a window, so nothing steals focus on login.
+            _tray.ShowMessage(
+                "Stash is running",
+                $"Press {_hotkeys.StashChord} to open it. Right-click this icon for help.");
         }
 
         _startupComplete = true;
@@ -246,6 +268,24 @@ public partial class App : Application
 
         _settingsWindow.Show();
         _settingsWindow.Activate();
+    }
+
+    private void ShowHelp()
+    {
+        if (_helpWindow is not null)
+        {
+            _helpWindow.Activate();
+            return;
+        }
+
+        _stashWindow.HidePanel();
+
+        _helpWindow = new HelpWindow(_settings, _hotkeys.StashChord);
+        _helpWindow.Closed += (_, _) => _helpWindow = null;
+        _helpWindow.SettingsRequested += ShowSettings;
+
+        _helpWindow.Show();
+        _helpWindow.Activate();
     }
 
     private void ClearHistory(bool includeFavorites)
