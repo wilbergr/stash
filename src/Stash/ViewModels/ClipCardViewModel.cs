@@ -199,6 +199,22 @@ public sealed class ClipCardViewModel : ObservableObject
         _ => Item.LineCount > 1 ? $"{Item.LineCount} lines" : $"{Item.TextLength} chars",
     };
 
+    /// <summary>
+    /// Whether "open" means anything for this clip. Text and colour clips have no
+    /// external target, so the card hides the action rather than offering a button
+    /// that appears to do nothing.
+    /// </summary>
+    public bool CanOpen => Item.Kind is ClipKind.Link or ClipKind.Files or ClipKind.Image;
+
+    /// <summary>Names what opening will actually do, which differs per kind.</summary>
+    public string OpenLabel => Item.Kind switch
+    {
+        ClipKind.Link => "Open in browser (Alt+O)",
+        ClipKind.Files => "Show in Explorer (Alt+O)",
+        ClipKind.Image => "Open image (Alt+O)",
+        _ => "Open (Alt+O)",
+    };
+
     public string SourceApp => Item.SourceApp ?? "Unknown app";
 
     /// <summary>Compact relative age, recomputed whenever the stash opens.</summary>

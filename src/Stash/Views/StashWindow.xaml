@@ -258,11 +258,15 @@
                                 ToolTip="Copy without pasting (Alt+C)"
                                 Command="{Binding DataContext.CopyOnlyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding}" />
+                        <!-- Hidden for text and colour clips: there is nothing to
+                             open, and an inert button next to Copy is worse than
+                             no button at all. -->
                         <Button Style="{StaticResource IconButton}"
                                 Width="26"
                                 Height="26"
                                 Tag="{StaticResource Icon.Open}"
-                                ToolTip="Open (Alt+O)"
+                                ToolTip="{Binding OpenLabel}"
+                                Visibility="{Binding CanOpen, Converter={StaticResource BoolToVis}}"
                                 Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding}" />
                         <Button Style="{StaticResource IconButton.Danger}"

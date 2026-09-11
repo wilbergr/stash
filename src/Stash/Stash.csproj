@@ -39,7 +39,7 @@
 
     <Product>Stash</Product>
     <AssemblyTitle>Stash — Clipboard Manager</AssemblyTitle>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
