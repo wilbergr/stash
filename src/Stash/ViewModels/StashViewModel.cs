@@ -513,7 +513,11 @@ public sealed class StashViewModel : ObservableObject
                     break;
 
                 default:
-                    CopyOnly(card);
+                    // Text and colour clips have no external target. This used to
+                    // fall through to a plain copy, which made the Open action look
+                    // like it did nothing while quietly duplicating Copy. Say so
+                    // instead.
+                    Toast = "Nothing to open for this clip";
                     break;
             }
         }
