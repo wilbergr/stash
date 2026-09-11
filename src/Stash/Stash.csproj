@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Plain net10.0-windows, not net10.0-windows10.0.x: Stash reaches Windows
+         only through P/Invoke, so it needs no WinRT projections and no Windows
+         SDK reference pack. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+
+    <UseWPF>true</UseWPF>
+    <!-- WindowsForms is referenced only for NotifyIcon (tray) and System.Drawing.
+         It keeps the project free of any NuGet dependency. -->
+    <UseWindowsForms>true</UseWindowsForms>
+
+    <AssemblyName>Stash</AssemblyName>
+    <RootNamespace>Stash</RootNamespace>
+    <ApplicationIcon>Assets\Stash.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <!-- WFO0003 tells WinForms apps to set DPI mode in code instead of the
+         manifest. Stash is a WPF app that only borrows NotifyIcon from WinForms,
+         and WPF wants PerMonitorV2 declared in the manifest, so the advice does
+         not apply here. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+
+    <!-- InvariantGlobalization must stay off: WPF resolves a specific culture for
+         every binding, and with ICU stripped out that throws
+         "Cannot find non-neutral culture related to 'en-us'" on the first bind. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <TieredPGO>true</TieredPGO>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <Product>Stash</Product>
+    <AssemblyTitle>Stash — Clipboard Manager</AssemblyTitle>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UseWindowsForms adds System.Windows.Forms and System.Drawing as implicit
+         global usings, which collide with WPF on Color, Size, Orientation and
+         IDataObject. Stash is a WPF app that borrows exactly two things from
+         WinForms (NotifyIcon and GDI+ for the tray glyph), so the WinForms
+         namespaces are removed here and qualified explicitly where needed. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+
+    <!-- Not part of the SDK's implicit set, but used unqualified throughout the
+         storage layer. Declared here rather than repeated in every file. -->
+    <Using Include="System.IO" />
+
+    <!-- ApplicationIcon embeds this as a Win32 resource for Explorer and the
+         taskbar. The tray needs to load actual frames at the shell's small-icon
+         size, which requires it as a WPF resource as well. -->
+    <Resource Include="Assets\Stash.ico" />
+  </ItemGroup>
+
+</Project>
