@@ -1,0 +1,60 @@
+<!--
+    Dark palette.
+
+    Surfaces are deliberately built from low-alpha whites rather than opaque greys
+    so the acrylic backdrop reads through the whole stack. Brush.Panel keeps some
+    transparency for the same reason, but stays high enough that the window still
+    looks intentional on builds where the backdrop is unavailable.
+
+    Brush.Accent* are placeholders: App overwrites them at startup with the user's
+    real Windows accent colour.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Panel -->
+    <SolidColorBrush x:Key="Brush.Panel" Color="#D81C1C20" />
+    <SolidColorBrush x:Key="Brush.PanelBorder" Color="#26FFFFFF" />
+    <SolidColorBrush x:Key="Brush.Divider" Color="#16FFFFFF" />
+
+    <!-- Cards -->
+    <SolidColorBrush x:Key="Brush.Card" Color="#0FFFFFFF" />
+    <SolidColorBrush x:Key="Brush.CardHover" Color="#1CFFFFFF" />
+    <SolidColorBrush x:Key="Brush.CardBorder" Color="#16FFFFFF" />
+    <SolidColorBrush x:Key="Brush.CardSelected" Color="#24FFFFFF" />
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="Brush.TextPrimary" Color="#FFF2F2F4" />
+    <SolidColorBrush x:Key="Brush.TextSecondary" Color="#ADFFFFFF" />
+    <SolidColorBrush x:Key="Brush.TextTertiary" Color="#70FFFFFF" />
+
+    <!-- Chips -->
+    <SolidColorBrush x:Key="Brush.Chip" Color="#0CFFFFFF" />
+    <SolidColorBrush x:Key="Brush.ChipHover" Color="#1AFFFFFF" />
+    <SolidColorBrush x:Key="Brush.ChipBorder" Color="#14FFFFFF" />
+
+    <!-- Search field -->
+    <SolidColorBrush x:Key="Brush.Search" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="Brush.SearchBorder" Color="#26FFFFFF" />
+
+    <!-- Buttons -->
+    <SolidColorBrush x:Key="Brush.ButtonHover" Color="#1FFFFFFF" />
+    <SolidColorBrush x:Key="Brush.ButtonPressed" Color="#0AFFFFFF" />
+    <SolidColorBrush x:Key="Brush.DangerHover" Color="#33E81123" />
+
+    <!-- Accents (replaced at runtime) -->
+    <SolidColorBrush x:Key="Brush.Accent" Color="#FF3B9BFF" />
+    <SolidColorBrush x:Key="Brush.AccentSoft" Color="#383B9BFF" />
+    <SolidColorBrush x:Key="Brush.OnAccent" Color="#FFFFFFFF" />
+
+    <!-- Favourite star -->
+    <SolidColorBrush x:Key="Brush.Star" Color="#FFFFC53D" />
+
+    <!-- Checkerboard shown behind transparent images -->
+    <SolidColorBrush x:Key="Brush.CheckerA" Color="#12FFFFFF" />
+    <SolidColorBrush x:Key="Brush.CheckerB" Color="#06FFFFFF" />
+
+    <SolidColorBrush x:Key="Brush.ScrollThumb" Color="#33FFFFFF" />
+    <SolidColorBrush x:Key="Brush.ScrollThumbHover" Color="#73FFFFFF" />
+
+</ResourceDictionary>
