@@ -1,0 +1,256 @@
+<Window x:Class="Stash.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Stash Settings"
+        Width="560"
+        Height="720"
+        MinWidth="480"
+        MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Brush.Panel}"
+        Foreground="{DynamicResource Brush.TextPrimary}"
+        FontFamily="{DynamicResource Font.Ui}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0"
+                      Padding="22,20,22,20"
+                      VerticalScrollBarVisibility="Auto">
+            <ScrollViewer.Resources>
+                <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinScrollBar}" />
+            </ScrollViewer.Resources>
+
+            <StackPanel>
+
+                <!-- ==== Warnings ============================================ -->
+                <Border x:Name="WarningBox"
+                        Background="#332F9BFF"
+                        BorderBrush="{DynamicResource Brush.Accent}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12,10,12,10"
+                        Margin="0,0,0,18"
+                        Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Path Grid.Column="0"
+                              Data="{StaticResource Icon.Warning}"
+                              Stroke="{DynamicResource Brush.TextPrimary}"
+                              StrokeThickness="1.5"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              Stretch="Uniform"
+                              Width="16"
+                              Height="16"
+                              Margin="0,1,10,0"
+                              VerticalAlignment="Top" />
+
+                        <ItemsControl x:Name="WarningList" Grid.Column="1">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}"
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource Brush.TextPrimary}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,4" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </Border>
+
+                <!-- ==== Hotkeys ============================================= -->
+                <TextBlock Text="Hotkeys" Style="{StaticResource SettingsHeading}" />
+
+                <TextBlock Text="Open the stash" Style="{StaticResource SettingsLabel}" />
+                <TextBox x:Name="HotkeyBox" Style="{StaticResource SettingsTextBox}" Margin="0,6,0,0" />
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="Modifiers plus one key, e.g. Win+Shift+V or Ctrl+Alt+C. Win+V belongs to Windows and cannot be taken. If the chord is unavailable, Stash falls back to the next one that works and tells you above." />
+
+                <CheckBox x:Name="QuickSlotsCheck"
+                          Style="{StaticResource ThemedCheckBox}"
+                          Content="Paste favorite quick-slots with a global hotkey"
+                          Margin="0,18,0,0" />
+
+                <TextBlock Text="Quick-slot prefix" Style="{StaticResource SettingsLabel}" Margin="0,12,0,0" />
+                <TextBox x:Name="QuickSlotPrefixBox" Style="{StaticResource SettingsTextBox}" Margin="0,6,0,0" />
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="Combined with the digits 1-9. With the default Ctrl+Alt, pressing Ctrl+Alt+3 pastes whatever is in quick slot 3 without opening the stash. Assign slots with Alt+1-9 on a card." />
+
+                <Border Height="1" Background="{DynamicResource Brush.Divider}" Margin="0,22,0,20" />
+
+                <!-- ==== Position ============================================ -->
+                <TextBlock Text="Position" Style="{StaticResource SettingsHeading}" />
+
+                <TextBlock Text="Dock the stash to" Style="{StaticResource SettingsLabel}" />
+                <WrapPanel Margin="0,8,0,0">
+                    <RadioButton x:Name="EdgeBottom" Style="{StaticResource SegmentChip}" Content="Bottom" GroupName="Edge" />
+                    <RadioButton x:Name="EdgeTop" Style="{StaticResource SegmentChip}" Content="Top" GroupName="Edge" />
+                    <RadioButton x:Name="EdgeLeft" Style="{StaticResource SegmentChip}" Content="Left" GroupName="Edge" />
+                    <RadioButton x:Name="EdgeRight" Style="{StaticResource SegmentChip}" Content="Right" GroupName="Edge" />
+                    <RadioButton x:Name="EdgeFloating" Style="{StaticResource SegmentChip}" Content="Floating" GroupName="Edge" />
+                </WrapPanel>
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="Stash slides in from whichever edge it is docked to. You can also drag it by its header, or press Ctrl with an arrow key while it is open. Drop it near an edge to re-dock; drop it anywhere else to leave it floating." />
+
+                <CheckBox x:Name="SlideCheck"
+                          Style="{StaticResource ThemedCheckBox}"
+                          Content="Animate the slide"
+                          Margin="0,18,0,0" />
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Height when docked top/bottom" Style="{StaticResource SettingsLabel}" />
+                        <TextBox x:Name="PanelHeightBox" Style="{StaticResource SettingsTextBox}" Margin="0,6,0,0" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Width when docked left/right" Style="{StaticResource SettingsLabel}" />
+                        <TextBox x:Name="PanelWidthBox" Style="{StaticResource SettingsTextBox}" Margin="0,6,0,0" />
+                    </StackPanel>
+                </Grid>
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="You can also resize without coming here: hover the panel and drag the thin grip on the edge that faces into the screen. Anything between 180 and 620 is allowed." />
+
+                <Border Height="1" Background="{DynamicResource Brush.Divider}" Margin="0,22,0,20" />
+
+                <!-- ==== Appearance ========================================== -->
+                <TextBlock Text="Appearance" Style="{StaticResource SettingsHeading}" />
+
+                <TextBlock Text="Theme" Style="{StaticResource SettingsLabel}" />
+                <WrapPanel Margin="0,8,0,0">
+                    <RadioButton x:Name="ThemeSystem" Style="{StaticResource SegmentChip}" Content="Follow Windows" GroupName="Theme" />
+                    <RadioButton x:Name="ThemeLight" Style="{StaticResource SegmentChip}" Content="Light" GroupName="Theme" />
+                    <RadioButton x:Name="ThemeDark" Style="{StaticResource SegmentChip}" Content="Dark" GroupName="Theme" />
+                </WrapPanel>
+
+                <Border Height="1" Background="{DynamicResource Brush.Divider}" Margin="0,22,0,20" />
+
+                <!-- ==== Behaviour =========================================== -->
+                <TextBlock Text="Behavior" Style="{StaticResource SettingsHeading}" />
+
+                <CheckBox x:Name="PasteOnSelectCheck"
+                          Style="{StaticResource ThemedCheckBox}"
+                          Content="Paste straight into the app when I pick a clip" />
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="With this off, picking a clip only puts it on the clipboard and you paste it yourself." />
+
+                <CheckBox x:Name="LaunchAtLoginCheck"
+                          Style="{StaticResource ThemedCheckBox}"
+                          Content="Start Stash when I sign in"
+                          Margin="0,16,0,0" />
+
+                <CheckBox x:Name="CaptureImagesCheck"
+                          Style="{StaticResource ThemedCheckBox}"
+                          Content="Capture copied images"
+                          Margin="0,16,0,0" />
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Keep at most (clips)" Style="{StaticResource SettingsLabel}" />
+                        <TextBox x:Name="MaxItemsBox" Style="{StaticResource SettingsTextBox}" Margin="0,6,0,0" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Forget after (days)" Style="{StaticResource SettingsLabel}" />
+                        <TextBox x:Name="RetentionBox" Style="{StaticResource SettingsTextBox}" Margin="0,6,0,0" />
+                    </StackPanel>
+                </Grid>
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="Favorites are never evicted by either limit. Use 0 days to keep clips until the count limit removes them." />
+
+                <Border Height="1" Background="{DynamicResource Brush.Divider}" Margin="0,22,0,20" />
+
+                <!-- ==== Privacy ============================================= -->
+                <TextBlock Text="Privacy" Style="{StaticResource SettingsHeading}" />
+
+                <CheckBox x:Name="SensitiveFlagsCheck"
+                          Style="{StaticResource ThemedCheckBox}"
+                          Content="Skip clips that apps mark as sensitive" />
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="Password managers and some browsers tag a copy as excluded from clipboard history. Leaving this on is strongly recommended — turning it off means Stash will store copied passwords." />
+
+                <TextBlock Text="Never capture from these apps" Style="{StaticResource SettingsLabel}" Margin="0,16,0,0" />
+                <TextBox x:Name="IgnoredAppsBox"
+                         Style="{StaticResource SettingsTextBox}"
+                         Margin="0,6,0,0"
+                         Height="86"
+                         AcceptsReturn="True"
+                         TextWrapping="NoWrap"
+                         VerticalContentAlignment="Top"
+                         VerticalScrollBarVisibility="Auto" />
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="One process name per line, without .exe. Matched as a substring, case-insensitively." />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Margin="0,14,0,0"
+                           Text="Stash keeps everything on this machine and never sends anything over the network. History is stored as plain files in your local profile and is not encrypted at rest, so treat it as readable by anything that can already read your user folder." />
+
+                <WrapPanel Margin="0,16,0,0">
+                    <Button x:Name="OpenFolderButton"
+                            Style="{StaticResource SecondaryButton}"
+                            Content="Open data folder"
+                            Margin="0,0,8,8" />
+                    <Button x:Name="ClearHistoryButton"
+                            Style="{StaticResource SecondaryButton}"
+                            Content="Clear history"
+                            Margin="0,0,8,8" />
+                    <Button x:Name="ClearAllButton"
+                            Style="{StaticResource SecondaryButton}"
+                            Content="Clear everything"
+                            Margin="0,0,0,8" />
+                </WrapPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ==== Footer ===================================================== -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource Brush.Divider}"
+                BorderThickness="0,1,0,0"
+                Padding="22,14,22,14">
+            <Grid>
+                <TextBlock x:Name="StatusText"
+                           Style="{StaticResource SettingsCaption}"
+                           Margin="0"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Left" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="CancelButton"
+                            Style="{StaticResource SecondaryButton}"
+                            Content="Cancel"
+                            Margin="0,0,8,0"
+                            IsCancel="True" />
+                    <Button x:Name="SaveButton"
+                            Style="{StaticResource PrimaryButton}"
+                            Content="Save"
+                            IsDefault="True" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

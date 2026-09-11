@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Stash installer.
+
+    Deliberately a PER-USER install. Stash needs no elevation at runtime: it
+    stores history under %LOCALAPPDATA%, registers its start-at-sign-in entry in
+    HKCU, and takes no machine-wide hotkey. A per-machine MSI would demand admin
+    rights for no benefit, and on a managed desktop that is often the difference
+    between "installs" and "cannot install".
+
+    Consequences of perUser scope:
+      * Installs to %LOCALAPPDATA%\Programs\Stash
+      * Appears under "Installed apps" for this user only
+      * Never prompts for UAC
+
+    The clipboard history in %LOCALAPPDATA%\Stash is intentionally left behind on
+    uninstall — silently destroying it would be the wrong default for data the
+    user may still want. The README says where to delete it.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <Package Name="Stash"
+           Manufacturer="$(Manufacturer)"
+           Version="$(ProductVersion)"
+           UpgradeCode="763A2AB4-D3F7-472C-BCB3-ECBCB899FCFF"
+           Scope="perUser"
+           Compressed="yes"
+           InstallerVersion="500">
+
+    <!-- Replace an older build in place rather than stacking installs. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Stash is already installed. Uninstall it first if you want to go back." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Stash lives in the tray, so it is usually running during an upgrade.
+         Without this the MSI would hit "file in use" and demand a reboot. -->
+    <util:CloseApplication Id="CloseStash"
+                           Target="Stash.exe"
+                           CloseMessage="yes"
+                           RebootPrompt="no"
+                           Description="Stash is running. Setup will close it before continuing." />
+
+    <Icon Id="StashIcon" SourceFile="$(IconFile)" />
+    <!-- ARPNOMODIFY is already set by WixUI_Minimal; setting it again is a
+         duplicate-symbol error. -->
+    <Property Id="ARPPRODUCTICON" Value="StashIcon" />
+
+    <!-- Shown by the WixUI_Minimal welcome dialog. -->
+    <WixVariable Id="WixUILicenseRtf" Value="$(NoticeFile)" />
+    <ui:WixUI Id="WixUI_Minimal" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Stash" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="Stash" Level="1">
+      <ComponentGroupRef Id="StashComponents" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="StashComponents">
+
+      <!-- The application itself: one self-contained single-file exe. -->
+      <Component Id="StashExecutable" Directory="INSTALLFOLDER" Guid="*">
+        <File Id="StashExe" Source="$(SourceExe)" KeyPath="yes" />
+      </Component>
+
+      <!-- Start Menu entry. A per-user component that creates a shortcut needs a
+           registry keypath rather than a file keypath, or MSI cannot track it. -->
+      <Component Id="StartMenuShortcut"
+                 Directory="ProgramMenuFolder"
+                 Guid="6FB0BE9D-3660-4EC6-83D5-A5FE156FBA52">
+        <Shortcut Id="StashStartMenuShortcut"
+                  Name="Stash"
+                  Description="Clipboard manager — press Ctrl+Alt+V"
+                  Target="[INSTALLFOLDER]Stash.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="StashIcon" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\Stash"
+                       Name="InstalledVersion"
+                       Type="string"
+                       Value="$(ProductVersion)"
+                       KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+  </Fragment>
+</Wix>
