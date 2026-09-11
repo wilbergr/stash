@@ -24,11 +24,20 @@ public sealed class SettingsStore
 
     public AppSettings Current { get; private set; } = new();
 
+    /// <summary>
+    /// True when no settings file existed at load, i.e. this is a fresh profile.
+    /// Used to point a first-time user at the hotkey, which is otherwise entirely
+    /// invisible in a tray-only app.
+    /// </summary>
+    public bool IsFirstRun { get; private set; }
+
     public event Action<AppSettings>? Changed;
 
     public AppSettings Load()
     {
         AppPaths.EnsureCreated();
+
+        IsFirstRun = !File.Exists(AppPaths.SettingsFile);
 
         try
         {

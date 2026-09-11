@@ -477,15 +477,24 @@
                                            Margin="9,1,0,0" />
                             </StackPanel>
 
+                            <!-- Stretch, not Right. A right-aligned TextBox sizes to
+                                 its content, so the field visibly grew and shrank
+                                 as you typed. Stretching pins it to the column and
+                                 MaxWidth stops it becoming absurd on a wide panel,
+                                 while still letting it shrink in a narrow dock. -->
                             <TextBox x:Name="SearchBox"
                                      Grid.Column="2"
                                      Style="{StaticResource SearchBox}"
                                      Margin="16,0,10,0"
                                      MaxWidth="320"
-                                     HorizontalAlignment="Right"
+                                     HorizontalAlignment="Stretch"
                                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
 
                             <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="HelpButton"
+                                        Style="{StaticResource IconButton}"
+                                        Tag="{StaticResource Icon.Help}"
+                                        ToolTip="How to use Stash (F1)" />
                                 <Button x:Name="SettingsButton"
                                         Style="{StaticResource IconButton}"
                                         Tag="{StaticResource Icon.Settings}"

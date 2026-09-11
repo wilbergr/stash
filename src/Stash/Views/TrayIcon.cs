@@ -18,6 +18,7 @@ public sealed class TrayIcon : IDisposable
 
     public event Action? OpenRequested;
     public event Action? SettingsRequested;
+    public event Action? HelpRequested;
     public event Action<DockEdge>? DockRequested;
     public event Action<bool>? ClearRequested;
     public event Action? QuitRequested;
@@ -130,6 +131,7 @@ public sealed class TrayIcon : IDisposable
 
         menu.Items.Add(new Forms.ToolStripSeparator());
 
+        menu.Items.Add(new Forms.ToolStripMenuItem("How to use Stash…", null, (_, _) => HelpRequested?.Invoke()));
         menu.Items.Add(new Forms.ToolStripMenuItem("Settings…", null, (_, _) => SettingsRequested?.Invoke()));
         menu.Items.Add(new Forms.ToolStripMenuItem("Clear history (keep favorites)", null, (_, _) => ClearRequested?.Invoke(false)));
         menu.Items.Add(new Forms.ToolStripMenuItem("Clear everything…", null, (_, _) => ClearRequested?.Invoke(true)));

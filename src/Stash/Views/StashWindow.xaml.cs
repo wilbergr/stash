@@ -50,6 +50,9 @@ public partial class StashWindow : Window
     /// <summary>Raised when the user asks for the settings window.</summary>
     public event Action? SettingsRequested;
 
+    /// <summary>Raised when the user asks for the help window.</summary>
+    public event Action? HelpRequested;
+
     public StashWindow(StashViewModel viewModel, SettingsStore settings)
     {
         _vm = viewModel;
@@ -70,6 +73,7 @@ public partial class StashWindow : Window
         _vm.PropertyChanged += OnViewModelPropertyChanged;
 
         SettingsButton.Click += (_, _) => SettingsRequested?.Invoke();
+        HelpButton.Click += (_, _) => HelpRequested?.Invoke();
         CloseButton.Click += (_, _) => HidePanel();
 
         HeaderBar.MouseLeftButtonDown += OnHeaderDragStart;
@@ -340,6 +344,21 @@ public partial class StashWindow : Window
             vertical ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(CardList,
             vertical ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled);
+
+        // A right-aligned TextBox sizes to its content, which made the search
+        // field visibly grow and shrink as the user typed. On a wide dock an
+        // explicit width pins it against the buttons; in the narrow left/right
+        // docks 320 would not fit, so let it stretch to whatever the column has.
+        if (vertical)
+        {
+            SearchBox.Width = double.NaN;
+            SearchBox.HorizontalAlignment = HorizontalAlignment.Stretch;
+        }
+        else
+        {
+            SearchBox.Width = 320;
+            SearchBox.HorizontalAlignment = HorizontalAlignment.Right;
+        }
     }
 
     private void ApplyGripPlacement()
@@ -680,6 +699,11 @@ public partial class StashWindow : Window
 
             case Key.OemComma when ctrl:
                 SettingsRequested?.Invoke();
+                e.Handled = true;
+                break;
+
+            case Key.F1:
+                HelpRequested?.Invoke();
                 e.Handled = true;
                 break;
         }

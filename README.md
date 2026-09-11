@@ -21,6 +21,8 @@ edge of the screen with everything you've copied recently, ready to grab.
   **quick slot 1–9** that pastes on a global hotkey without the panel appearing
   at all.
 - **Type to filter** across content, source app and link text.
+- **Built-in help** on `F1` or the **?** button, explaining copying, pasting and
+  every hotkey in plain language.
 - Lives in the tray, starts at sign-in if you want it to, and follows your
   Windows light/dark theme and accent color.
 
@@ -112,7 +114,13 @@ wix extension add --global WixToolset.Util.wixext/5.0.2
 | `Alt+Delete` | Remove from history |
 | `Ctrl` + arrow | Re-dock to that edge |
 | `Ctrl+,` | Settings |
+| `F1` | How to use Stash |
 | `Esc` | Dismiss |
+
+There's a built-in guide covering all of this — press `F1`, click the **?** in the
+panel header, or pick "How to use Stash" from the tray menu. It reads the chords
+out of your actual configuration, so it shows the hotkey you really have rather
+than the default (they differ if the preferred chord was already taken).
 
 Card actions use `Ctrl`/`Alt` chords rather than bare letters because the search
 box always holds focus, so plain keys have to stay available for typing.
