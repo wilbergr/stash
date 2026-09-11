@@ -47,6 +47,15 @@ public partial class StashWindow : Window
     private bool _isDragging;
     private bool _applyingLayout;
 
+    /// <summary>
+    /// Monitor the panel was dropped on, if it has just been dragged. Placement
+    /// normally follows the monitor of the window the user came from, which is
+    /// right when opening but wrong immediately after a drag: it would re-dock the
+    /// panel on the original monitor and yank it away from where it was dropped.
+    /// Cleared on the next show.
+    /// </summary>
+    private MonitorArea? _dropMonitor;
+
     /// <summary>Raised when the user asks for the settings window.</summary>
     public event Action? SettingsRequested;
 
@@ -118,6 +127,10 @@ public partial class StashWindow : Window
 
         _isClosing = false;
         _vm.TargetWindow = target;
+
+        // Opening follows the app the user is in, so forget where it was last
+        // dropped.
+        _dropMonitor = null;
 
         _edge = DockEdgeExtensions.Parse(_settings.Current.Edge);
         _vm.Edge = _edge;
@@ -251,7 +264,9 @@ public partial class StashWindow : Window
 
         try
         {
-            _layout = StashPlacement.Compute(_edge, _settings.Current, target);
+            _layout = _dropMonitor is { } dropped
+                ? StashPlacement.Compute(_edge, _settings.Current, dropped)
+                : StashPlacement.Compute(_edge, _settings.Current, target);
 
             PushWindowRect();
 
@@ -450,6 +465,12 @@ public partial class StashWindow : Window
 
         _isDragging = true;
 
+        // The clip that keeps the slide overhang off the neighbouring monitor is
+        // aligned to that monitor but expressed in window coordinates, so it
+        // travels with the window: during a drag it slices pieces off the panel.
+        // Drop it for the duration; ApplyLayout restores it on drop.
+        WindowRoot.Clip = null;
+
         try
         {
             // DragMove blocks until the button is released.
@@ -481,15 +502,29 @@ public partial class StashWindow : Window
             return;
         }
 
-        // Read the truth back from the OS rather than trusting WPF's units, then
-        // recover the panel's own rectangle from inside the window.
-        var monitor = ScreenGeometry.ForWindowOrCursor(hwnd);
+        // Locate the panel inside the window using the scale the layout was built
+        // with, then ask which monitor that rectangle actually sits on.
+        //
+        // Deliberately not MonitorFromWindow: the window is far larger than the
+        // panel and deliberately hangs off the screen edge, so the monitor with
+        // the largest slice of *window* is frequently not the monitor the user
+        // sees the panel on. Snapping then measured against the wrong work area
+        // and appeared to do nothing.
+        var panelPixels = PanelRectFrom(windowPixels, _layout.Scale);
 
-        var panelPixels = new Rect(
-            windowPixels.Left + monitor.ToPixels(_layout.PanelMargin.Left),
-            windowPixels.Top + monitor.ToPixels(_layout.PanelMargin.Top),
-            monitor.ToPixels(_layout.PanelSize.Width),
-            monitor.ToPixels(_layout.PanelSize.Height));
+        var monitor = ScreenGeometry.ForPoint(new Point(
+            panelPixels.Left + (panelPixels.Width / 2),
+            panelPixels.Top + (panelPixels.Height / 2)));
+
+        // Re-measure with that monitor's scale in case the drag crossed a DPI
+        // boundary, which changes where the panel sits inside the window.
+        if (Math.Abs(monitor.Scale - _layout.Scale) > 0.01)
+        {
+            panelPixels = PanelRectFrom(windowPixels, monitor.Scale);
+        }
+
+        // Re-dock relative to where it was dropped, not where it came from.
+        _dropMonitor = monitor;
 
         var target = StashPlacement.SnapTarget(panelPixels, monitor, _settings.Current.SnapDistance);
 
@@ -514,6 +549,16 @@ public partial class StashWindow : Window
             DockTo(target);
         }
     }
+
+    /// <summary>
+    /// Where the visible panel sits inside the window, in real pixels. The panel
+    /// is inset by the shadow pad plus, on the docked side, the slide travel.
+    /// </summary>
+    private Rect PanelRectFrom(Rect windowPixels, double scale) => new(
+        windowPixels.Left + (_layout.PanelMargin.Left * scale),
+        windowPixels.Top + (_layout.PanelMargin.Top * scale),
+        Math.Max(1, _layout.PanelSize.Width * scale),
+        Math.Max(1, _layout.PanelSize.Height * scale));
 
     private void OnResizeDrag(object sender, DragDeltaEventArgs e)
     {
