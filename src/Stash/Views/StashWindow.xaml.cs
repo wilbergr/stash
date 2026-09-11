@@ -56,6 +56,19 @@ public partial class StashWindow : Window
     /// </summary>
     private MonitorArea? _dropMonitor;
 
+    /// <summary>
+    /// Orientation the card list is currently built for, so the containers are
+    /// only regenerated when it genuinely changes. Null until first applied.
+    /// </summary>
+    private bool? _appliedVertical;
+
+    /// <summary>
+    /// Guards <see cref="EnsureWindowRect"/> against ping-ponging with WPF. One
+    /// corrective pass per layout, then leave it alone: an endless correction
+    /// loop shows up as the window flashing.
+    /// </summary>
+    private bool _placementCorrected;
+
     /// <summary>Raised when the user asks for the settings window.</summary>
     public event Action? SettingsRequested;
 
@@ -98,7 +111,18 @@ public partial class StashWindow : Window
         Deactivated += (_, _) => HidePanel();
 
         // Moving between monitors of different scale changes every derived size.
-        DpiChanged += (_, _) => ApplyLayout(_vm.TargetWindow);
+        //
+        // Ignored mid-drag: DragMove is a modal loop the user is driving, and
+        // crossing a DPI boundary during it would otherwise call ApplyLayout,
+        // SetWindowPos the window back to its docked position, and fight the
+        // drag. That produced rapid flashing when dragging across monitors.
+        DpiChanged += (_, _) =>
+        {
+            if (!_isDragging)
+            {
+                ApplyLayout(_vm.TargetWindow);
+            }
+        };
 
         // Create the HWND up front so SetWindowPos can place the window before it
         // is ever shown, and so the first hotkey press does not pay for it.
@@ -261,6 +285,7 @@ public partial class StashWindow : Window
         }
 
         _applyingLayout = true;
+        _placementCorrected = false;
 
         try
         {
@@ -317,6 +342,13 @@ public partial class StashWindow : Window
     /// </summary>
     private void EnsureWindowRect()
     {
+        // Never while the user is dragging: the window is meant to be wherever
+        // they have moved it to.
+        if (_isDragging || _placementCorrected)
+        {
+            return;
+        }
+
         var hwnd = Handle;
         if (hwnd == IntPtr.Zero || _layout.WindowPixels.IsEmpty)
         {
@@ -344,6 +376,7 @@ public partial class StashWindow : Window
         AppPaths.Log(
             $"Placement corrected: window was at {actual}, expected {_layout.WindowPixels}.");
 
+        _placementCorrected = true;
         PushWindowRect();
     }
 
@@ -352,8 +385,18 @@ public partial class StashWindow : Window
     {
         var vertical = _edge.IsVertical();
 
-        CardList.ItemTemplate = (DataTemplate)FindResource(vertical ? "RowCardTemplate" : "TileCardTemplate");
-        CardList.ItemsPanel = (ItemsPanelTemplate)FindResource(vertical ? "VerticalCardsPanel" : "HorizontalCardsPanel");
+        // Replacing ItemsPanel or ItemTemplate throws away every container and
+        // regenerates them. Doing that when the orientation has not actually
+        // changed — docking bottom to top, say — is pure churn, and churn during
+        // a resize is what triggers WPF's "content generation is in progress"
+        // re-entrancy failure.
+        if (_appliedVertical != vertical)
+        {
+            _appliedVertical = vertical;
+
+            CardList.ItemTemplate = (DataTemplate)FindResource(vertical ? "RowCardTemplate" : "TileCardTemplate");
+            CardList.ItemsPanel = (ItemsPanelTemplate)FindResource(vertical ? "VerticalCardsPanel" : "HorizontalCardsPanel");
+        }
 
         ScrollViewer.SetHorizontalScrollBarVisibility(CardList,
             vertical ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto);
@@ -615,11 +658,27 @@ public partial class StashWindow : Window
         }
 
         // Deferred: the container may not exist yet right after a rebuild.
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        // Background priority rather than Loaded so it runs after layout has
+        // settled — ScrollIntoView reaches into the item generator, and calling
+        // it while WPF is still generating containers throws "Cannot call
+        // StartAt when content generation is in progress", which crashed the app
+        // when a resize and a selection change coincided during a drag.
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
         {
-            if (index < CardList.Items.Count)
+            if (!IsVisible || _isDragging || index >= CardList.Items.Count)
+            {
+                return;
+            }
+
+            try
             {
                 CardList.ScrollIntoView(CardList.Items[index]);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Bringing a card into view is a nicety. If the generator is busy
+                // anyway, skip it rather than take the app down.
+                AppPaths.Log("ScrollIntoView skipped; the item generator was busy.", ex);
             }
         });
     }
