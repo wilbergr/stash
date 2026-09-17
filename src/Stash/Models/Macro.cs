@@ -11,6 +11,17 @@ namespace Stash.Models;
 /// </remarks>
 public sealed class Macro
 {
+    /// <summary>
+    /// Stable identity, so editing and deleting cannot act on the wrong entry.
+    /// </summary>
+    /// <remarks>
+    /// Position in the file would be fragile: the user can reorder or hand-edit
+    /// macros.json at any time, and name and hotkey are both things an edit is
+    /// likely to be changing. Entries written before this existed are assigned an
+    /// id the first time the file is loaded.
+    /// </remarks>
+    public string Id { get; set; } = "";
+
     /// <summary>Shown in Settings and in the confirmation toast.</summary>
     public string Name { get; set; } = "";
 
@@ -23,6 +34,16 @@ public sealed class Macro
 
     /// <summary>Total characters this macro would type, for the size guard.</summary>
     public int TextLength => Steps.Sum(s => s.Text?.Length ?? 0);
+
+    /// <summary>A copy, so an edit in progress cannot mutate the loaded macro.</summary>
+    public Macro Clone() => new()
+    {
+        Id = Id,
+        Name = Name,
+        Hotkey = Hotkey,
+        Enabled = Enabled,
+        Steps = Steps.Select(s => new MacroStep { Text = s.Text, Key = s.Key, DelayMs = s.DelayMs }).ToList(),
+    };
 }
 
 /// <summary>

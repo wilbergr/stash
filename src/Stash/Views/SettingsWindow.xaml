@@ -116,34 +116,82 @@
                         <ItemsControl x:Name="MacroList">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="0,0,0,6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
+                                    <Border Margin="0,0,0,4"
+                                            Padding="0,3,0,4"
+                                            Background="Transparent">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
 
-                                        <Border Grid.Column="0"
-                                                Style="{StaticResource KeyCap}"
-                                                MinWidth="86"
-                                                VerticalAlignment="Top"
-                                                Margin="0,1,10,0">
-                                            <TextBlock Text="{Binding Chord}"
-                                                       Style="{StaticResource KeyCapText}"
-                                                       HorizontalAlignment="Center" />
-                                        </Border>
+                                            <!-- Enable / disable. Tag carries the id
+                                                 so one handler serves every row. -->
+                                            <CheckBox Grid.Column="0"
+                                                      Style="{StaticResource ThemedCheckBox}"
+                                                      IsChecked="{Binding Enabled, Mode=OneWay}"
+                                                      Tag="{Binding Id}"
+                                                      Margin="0,0,10,0"
+                                                      VerticalAlignment="Top"
+                                                      ToolTip="Enable or disable this macro"
+                                                      Checked="OnMacroEnabledChanged"
+                                                      Unchecked="OnMacroEnabledChanged" />
 
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontSize="12.5"
-                                                       Foreground="{DynamicResource Brush.TextPrimary}"
-                                                       TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{Binding Summary}"
-                                                       FontSize="11"
-                                                       Foreground="{DynamicResource Brush.TextTertiary}"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Margin="0,1,0,0" />
-                                        </StackPanel>
-                                    </Grid>
+                                            <Border Grid.Column="1"
+                                                    Style="{StaticResource KeyCap}"
+                                                    MinWidth="86"
+                                                    VerticalAlignment="Top"
+                                                    Margin="0,1,10,0"
+                                                    Opacity="{Binding DimWhenOff}">
+                                                <TextBlock Text="{Binding Chord}"
+                                                           Style="{StaticResource KeyCapText}"
+                                                           HorizontalAlignment="Center" />
+                                            </Border>
+
+                                            <StackPanel Grid.Column="2" Opacity="{Binding DimWhenOff}">
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="12.5"
+                                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Summary}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource Brush.TextTertiary}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="0,1,0,0" />
+                                                <TextBlock Text="{Binding Problem}"
+                                                           FontSize="11"
+                                                           Foreground="#FFE08A8A"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,2,0,0"
+                                                           Visibility="{Binding HasProblem, Converter={StaticResource BoolToVis}}" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="3"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Top"
+                                                        Margin="8,0,0,0">
+                                                <!-- Tag carries the glyph, which the
+                                                     IconButton template binds to, so
+                                                     the id rides on CommandParameter. -->
+                                                <Button Style="{StaticResource IconButton}"
+                                                        Width="26"
+                                                        Height="26"
+                                                        Tag="{StaticResource Icon.Edit}"
+                                                        CommandParameter="{Binding Id}"
+                                                        ToolTip="Edit this macro"
+                                                        Click="OnEditMacro" />
+                                                <Button Style="{StaticResource IconButton.Danger}"
+                                                        Width="26"
+                                                        Height="26"
+                                                        Tag="{StaticResource Icon.Delete}"
+                                                        CommandParameter="{Binding Id}"
+                                                        ToolTip="Delete this macro"
+                                                        Click="OnDeleteMacro" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
