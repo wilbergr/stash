@@ -347,6 +347,11 @@
                            Text="Stash keeps everything on this machine and never sends anything over the network. History is stored as plain files in your local profile and is not encrypted at rest, so treat it as readable by anything that can already read your user folder." />
 
                 <WrapPanel Margin="0,16,0,0">
+                    <Button x:Name="CleanupButton"
+                            Style="{StaticResource PrimaryButton}"
+                            Content="Clean up…"
+                            ToolTip="Remove clips by age, kind, or whether you have ever pasted them"
+                            Margin="0,0,8,8" />
                     <Button x:Name="OpenFolderButton"
                             Style="{StaticResource SecondaryButton}"
                             Content="Open data folder"

@@ -30,6 +30,9 @@ public partial class SettingsWindow : Window
     /// <summary>Raised when macros should be re-read and re-registered.</summary>
     public event Action? ReloadMacrosRequested;
 
+    /// <summary>Raised when the user asks for the targeted cleanup dialog.</summary>
+    public event Action? CleanupRequested;
+
     public SettingsWindow(
         SettingsStore settings,
         HistoryStore history,
@@ -50,6 +53,7 @@ public partial class SettingsWindow : Window
         ClearHistoryButton.Click += (_, _) => OnClear(includeFavorites: false);
         ClearAllButton.Click += (_, _) => OnClear(includeFavorites: true);
 
+        CleanupButton.Click += (_, _) => CleanupRequested?.Invoke();
         RecordMacroButton.Click += (_, _) => RecordMacroRequested?.Invoke();
         OpenMacrosButton.Click += (_, _) => OnOpenMacros();
         ReloadMacrosButton.Click += (_, _) =>
