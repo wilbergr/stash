@@ -16,6 +16,8 @@ public static class AppPaths
 
     public static string SettingsFile { get; } = Path.Combine(Root, "settings.json");
 
+    public static string MacrosFile { get; } = Path.Combine(Root, "macros.json");
+
     public static string LogFile { get; } = Path.Combine(Root, "stash.log");
 
     public static void EnsureCreated()

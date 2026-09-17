@@ -21,6 +21,11 @@ edge of the screen with everything you've copied recently, ready to grab.
   **quick slot 1–9** that pastes on a global hotkey without the panel appearing
   at all.
 - **Type to filter** across content, source app and link text.
+- **Macros** — hotkeys that *type* instead of pasting, for fields that reject
+  pasted text, remote sessions with no shared clipboard, and form filling with
+  real `Tab` presses. Record them by typing, or write them by hand.
+- **Built-in help** on `F1` or the **?** button, explaining copying, pasting and
+  every hotkey in plain language.
 - Lives in the tray, starts at sign-in if you want it to, and follows your
   Windows light/dark theme and accent color.
 
@@ -112,10 +117,91 @@ wix extension add --global WixToolset.Util.wixext/5.0.2
 | `Alt+Delete` | Remove from history |
 | `Ctrl` + arrow | Re-dock to that edge |
 | `Ctrl+,` | Settings |
+| `F1` | How to use Stash |
 | `Esc` | Dismiss |
+
+Macros get their own chords, whatever you assign them — see [Macros](#macros).
+`Ctrl+Alt+Shift+R` stops a recording.
+
+There's a built-in guide covering all of this — press `F1`, click the **?** in the
+panel header, or pick "How to use Stash" from the tray menu. It reads the chords
+out of your actual configuration, so it shows the hotkey you really have rather
+than the default (they differ if the preferred chord was already taken).
 
 Card actions use `Ctrl`/`Alt` chords rather than bare letters because the search
 box always holds focus, so plain keys have to stay available for typing.
+
+## Macros
+
+A quick slot pastes through the clipboard. A **macro** presses the keys itself,
+which matters when pasting isn't an option: fields that reject pasted text,
+remote or virtualised sessions where the clipboard isn't shared, and forms that
+need a real `Tab` between fields. It also leaves your clipboard untouched.
+
+**Record one:** Settings → *Record a macro*. Press Start, switch to the app you
+want, and type. Stash collects letters into text runs and turns keys like `Tab`,
+`Enter` and `Backspace` into steps of their own. `Ctrl+Alt+Shift+R` stops the
+recording; then name it, give it a hotkey, and save.
+
+**Manage them:** Settings lists every macro in the file — including disabled and
+broken ones, so they can be fixed rather than just ignored. Each row has a tick
+to enable or disable it, a pencil to edit the name, hotkey or steps, and a bin to
+delete it. Changes take effect immediately; no restart, no reload.
+
+Editing opens the same recorder. Change the name or hotkey and save, and the
+steps are left alone; press *Record again* to replace what it types. An existing
+macro is never emptied by starting and stopping a recording that captured
+nothing.
+
+**Or write one:** macros live in `%LOCALAPPDATA%\Stash\macros.json`, which Stash
+seeds with worked examples on first run. Each step is text to type, a key to
+press, or a pause:
+
+```json
+{
+  "Macros": [
+    {
+      "Name": "Example",
+      "Hotkey": "Ctrl+Alt+H",
+      "Enabled": true,
+      "Steps": [ { "Text": "EXAMPLE" } ]
+    },
+    {
+      "Name": "Fill two fields",
+      "Hotkey": "Ctrl+Alt+J",
+      "Enabled": true,
+      "Steps": [
+        { "Text": "first field" },
+        { "Key": "Tab" },
+        { "DelayMs": 100 },
+        { "Text": "second field" },
+        { "Key": "Enter" }
+      ]
+    }
+  ]
+}
+```
+
+`Key` accepts `Tab`, `Enter`, `Esc`, `Backspace`, `Delete`, `Home`, `End`,
+arrows, `F1`–`F24`, and chords like `Ctrl+A`. Save the file, then Settings →
+*Reload macros* (or the tray menu).
+
+Text is typed with `KEYEVENTF_UNICODE` rather than virtual-key codes, so it is
+independent of keyboard layout and handles characters that have no key of their
+own. If a stubborn target drops characters — remote desktop clients are the usual
+culprits — raise **typing pace** in Settings from 0 to 5–15 ms.
+
+### Two things to know
+
+**Recording uses a low-level keyboard hook**, the same mechanism a keylogger
+uses. It is therefore installed *only* between pressing Start and stopping, never
+while Stash merely sits in the tray; it ignores synthetic input, so macros can't
+record each other; and captured keys exist only in memory until you save. While a
+recording is running it does see everything you type.
+
+**Macros are stored as plain text and type whatever they contain.** Don't put
+passwords in them — leave those in your password manager, which Stash already
+declines to record.
 
 ## Privacy
 
@@ -209,13 +295,14 @@ take over the keyboard for a few seconds — don't type while they run. They als
 reset your local history and settings so card positions are deterministic; pass
 `-KeepProfile` to keep them.
 
-37 assertions across four suites:
+43 assertions across five suites:
 
 | Suite | What it checks |
 | --- | --- |
 | `Test-ContentTypes` | Every kind Stash handles — plain text, multi-line text, links, colors, images and file lists — is captured with the right kind and metadata, **and** puts the original payload back on the clipboard when selected. Also asserts that clips flagged `ExcludeClipboardContentFromMonitorProcessing` or `CanIncludeInClipboardHistory=0` are never stored. |
 | `Test-Paste` | Hotkey opens the panel, arrow keys navigate, `Enter` pastes the selected clip into the app that had focus, `Ctrl+1` quick-picks, `Esc` dismisses without pasting. |
 | `Test-QuickSlots` | `Alt+1` assigns a quick slot, a slotted clip becomes a favorite, and `Ctrl+Alt+1` pastes it globally without opening the panel. |
+| `Test-Macros` | A macro hotkey types plain text, punctuation and mixed case; `Enter`, `Tab` and `Backspace` replay as real key presses; a disabled macro stays silent; and typing a macro leaves the clipboard untouched. It writes its own `macros.json` fixture and restores yours afterwards. |
 | `Test-Placement` | All four dock edges on every connected monitor — 12 checks here — land inside the work area at the right offset and centring, including mixed DPI. Expected geometry is derived from the measured window, not read back from settings, so changing a default size can't silently invalidate the test. |
 
 Round-trip checks use `Alt+C` (copy without pasting) rather than `Enter`, because

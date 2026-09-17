@@ -258,11 +258,15 @@
                                 ToolTip="Copy without pasting (Alt+C)"
                                 Command="{Binding DataContext.CopyOnlyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding}" />
+                        <!-- Hidden for text and colour clips: there is nothing to
+                             open, and an inert button next to Copy is worse than
+                             no button at all. -->
                         <Button Style="{StaticResource IconButton}"
                                 Width="26"
                                 Height="26"
                                 Tag="{StaticResource Icon.Open}"
-                                ToolTip="Open (Alt+O)"
+                                ToolTip="{Binding OpenLabel}"
+                                Visibility="{Binding CanOpen, Converter={StaticResource BoolToVis}}"
                                 Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding}" />
                         <Button Style="{StaticResource IconButton.Danger}"
@@ -473,15 +477,24 @@
                                            Margin="9,1,0,0" />
                             </StackPanel>
 
+                            <!-- Stretch, not Right. A right-aligned TextBox sizes to
+                                 its content, so the field visibly grew and shrank
+                                 as you typed. Stretching pins it to the column and
+                                 MaxWidth stops it becoming absurd on a wide panel,
+                                 while still letting it shrink in a narrow dock. -->
                             <TextBox x:Name="SearchBox"
                                      Grid.Column="2"
                                      Style="{StaticResource SearchBox}"
                                      Margin="16,0,10,0"
                                      MaxWidth="320"
-                                     HorizontalAlignment="Right"
+                                     HorizontalAlignment="Stretch"
                                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
 
                             <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="HelpButton"
+                                        Style="{StaticResource IconButton}"
+                                        Tag="{StaticResource Icon.Help}"
+                                        ToolTip="How to use Stash (F1)" />
                                 <Button x:Name="SettingsButton"
                                         Style="{StaticResource IconButton}"
                                         Tag="{StaticResource Icon.Settings}"

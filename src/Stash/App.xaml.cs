@@ -27,6 +27,8 @@ public partial class App : Application
     private RegisteredWaitHandle? _showSignalRegistration;
 
     private SettingsStore _settings = null!;
+    private MacroStore _macros = null!;
+    private MacroRunner _macroRunner = null!;
     private HistoryStore _history = null!;
     private ThumbnailCache _thumbnails = null!;
     private MessageWindow _messageWindow = null!;
@@ -37,6 +39,8 @@ public partial class App : Application
     private StashWindow _stashWindow = null!;
     private TrayIcon _tray = null!;
     private SettingsWindow? _settingsWindow;
+    private HelpWindow? _helpWindow;
+    private RecorderWindow? _recorderWindow;
 
     /// <summary>
     /// False until OnStartup finishes. Decides whether an unhandled exception is
@@ -58,11 +62,27 @@ public partial class App : Application
 
         DispatcherUnhandledException += OnUnhandledException;
 
+        // History is written on a debounced timer, and OnExit is not guaranteed
+        // to run when Windows shuts down or signs the user out — it may simply
+        // terminate the process. Without this, the last couple of seconds of
+        // clips would be lost across a reboot.
+        SessionEnding += (_, _) =>
+        {
+            AppPaths.Log("Session ending; flushing history.");
+            _history?.FlushIfDirty();
+            _settings?.Save();
+        };
+
         AppPaths.EnsureCreated();
         AppPaths.Log("Stash starting.");
 
         _settings = new SettingsStore();
         _settings.Load();
+
+        _macros = new MacroStore();
+        _macros.Load();
+
+        _macroRunner = new MacroRunner(_settings);
 
         ApplyTheme();
 
@@ -78,6 +98,7 @@ public partial class App : Application
         _stashViewModel = new StashViewModel(_history, _paste, _thumbnails, _settings);
         _stashWindow = new StashWindow(_stashViewModel, _settings);
         _stashWindow.SettingsRequested += ShowSettings;
+        _stashWindow.HelpRequested += ShowHelp;
 
         _hotkeys = new HotkeyService(_messageWindow);
         _hotkeys.Pressed += OnHotkeyPressed;
@@ -86,6 +107,8 @@ public partial class App : Application
         _tray = new TrayIcon(_settings);
         _tray.OpenRequested += () => ShowPanel();
         _tray.SettingsRequested += ShowSettings;
+        _tray.HelpRequested += ShowHelp;
+        _tray.ReloadMacrosRequested += ReloadMacros;
         _tray.DockRequested += edge => _stashWindow.DockTo(edge);
         _tray.ClearRequested += ClearHistory;
         _tray.QuitRequested += Shutdown;
@@ -108,6 +131,14 @@ public partial class App : Application
             _tray.ShowMessage(
                 "Stash is running, but has no hotkey",
                 "Every candidate chord is already in use. Open Stash from this tray icon, or pick a different hotkey in Settings.");
+        }
+        else if (_settings.IsFirstRun)
+        {
+            // A tray-only app is invisible until you know the chord. A balloon
+            // rather than a window, so nothing steals focus on login.
+            _tray.ShowMessage(
+                "Stash is running",
+                $"Press {_hotkeys.StashChord} to open it. Right-click this icon for help.");
         }
 
         _startupComplete = true;
@@ -151,12 +182,33 @@ public partial class App : Application
     {
         try
         {
+            // This process was just launched by the user, so it holds the
+            // foreground right. Hand that to the copy already running, or its
+            // panel will appear and instantly dismiss itself.
+            var me = Environment.ProcessId;
+            foreach (var other in System.Diagnostics.Process.GetProcessesByName("Stash"))
+            {
+                using (other)
+                {
+                    if (other.Id != me)
+                    {
+                        NativeMethods.AllowSetForegroundWindow((uint)other.Id);
+                    }
+                }
+            }
+
             if (EventWaitHandle.TryOpenExisting(ShowSignalName, out var handle))
             {
                 using (handle)
                 {
                     handle.Set();
                 }
+
+                AppPaths.Log("Stash was already running; asked the running copy to open and exited.");
+            }
+            else
+            {
+                AppPaths.Log("Stash appears to be running but did not answer; this copy exited without opening.");
             }
         }
         catch (Exception ex)
@@ -170,7 +222,9 @@ public partial class App : Application
     private void ApplyHotkeys()
     {
         var s = _settings.Current;
-        _hotkeys.Apply(s.Hotkey, s.QuickSlotsEnabled, s.QuickSlotModifiers);
+        var macros = s.MacrosEnabled ? _macros.Macros : null;
+
+        _hotkeys.Apply(s.Hotkey, s.QuickSlotsEnabled, s.QuickSlotModifiers, macros);
 
         _stashViewModel.HotkeyHint = _hotkeys.StashChord ?? "no hotkey";
         _tray?.SetHotkeyHint(_hotkeys.StashChord);
@@ -179,6 +233,27 @@ public partial class App : Application
         {
             AppPaths.Log("Hotkey: " + warning);
         }
+
+        foreach (var problem in _macros.Problems)
+        {
+            AppPaths.Log("Macro: " + problem);
+        }
+    }
+
+    /// <summary>Re-reads macros.json and re-registers every hotkey.</summary>
+    private void ReloadMacros()
+    {
+        _macros.Load();
+        ApplyHotkeys();
+
+        var count = _macros.Macros.Count;
+        var problems = _macros.Problems.Count;
+
+        _tray.ShowMessage(
+            "Macros reloaded",
+            problems == 0
+                ? $"{count} macro{(count == 1 ? "" : "s")} ready."
+                : $"{count} loaded, {problems} rejected. See Settings or stash.log.");
     }
 
     private void OnHotkeyPressed(HotkeyPressed pressed)
@@ -190,8 +265,32 @@ public partial class App : Application
                 break;
 
             case HotkeyKind.QuickSlot:
-                _ = PasteQuickSlot(pressed.Slot);
+                _ = PasteQuickSlot(pressed.Index);
                 break;
+
+            case HotkeyKind.Macro:
+                _ = RunMacro(pressed.Index);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Types a macro into the focused app. The panel never appears: the window
+    /// the user is in is already the target.
+    /// </summary>
+    private async Task RunMacro(int index)
+    {
+        if (index < 0 || index >= _macros.Macros.Count)
+        {
+            return;
+        }
+
+        var macro = _macros.Macros[index];
+        var ok = await _macroRunner.RunAsync(macro);
+
+        if (!ok)
+        {
+            AppPaths.Log($"Macro '{macro.Name}' did not complete.");
         }
     }
 
@@ -235,7 +334,11 @@ public partial class App : Application
 
         _stashWindow.HidePanel();
 
-        _settingsWindow = new SettingsWindow(_settings, _history, _thumbnails, _hotkeys.Warnings);
+        // Macro problems belong in the same warning box as hotkey problems: from
+        // the user's point of view both are "a chord I configured is not working".
+        var warnings = _hotkeys.Warnings.Concat(_macros.Problems).ToList();
+
+        _settingsWindow = new SettingsWindow(_settings, _history, _thumbnails, _macros, warnings);
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Saved += () =>
         {
@@ -243,9 +346,59 @@ public partial class App : Application
             ApplyHotkeys();
             _stashViewModel.Rebuild();
         };
+        _settingsWindow.RecordMacroRequested += () => ShowRecorder(null);
+        _settingsWindow.EditMacroRequested += ShowRecorder;
+        _settingsWindow.ReloadMacrosRequested += () =>
+        {
+            _macros.Load();
+            ApplyHotkeys();
+        };
 
         _settingsWindow.Show();
         _settingsWindow.Activate();
+    }
+
+    private void ShowHelp()
+    {
+        if (_helpWindow is not null)
+        {
+            _helpWindow.Activate();
+            return;
+        }
+
+        _stashWindow.HidePanel();
+
+        _helpWindow = new HelpWindow(_settings, _hotkeys.StashChord);
+        _helpWindow.Closed += (_, _) => _helpWindow = null;
+        _helpWindow.SettingsRequested += ShowSettings;
+
+        _helpWindow.Show();
+        _helpWindow.Activate();
+    }
+
+    /// <summary>
+    /// Opens the recorder, either blank or editing <paramref name="editing"/>.
+    /// </summary>
+    private void ShowRecorder(Models.Macro? editing)
+    {
+        if (_recorderWindow is not null)
+        {
+            _recorderWindow.Activate();
+            return;
+        }
+
+        _stashWindow.HidePanel();
+
+        _recorderWindow = new RecorderWindow(_macros, _settings, editing);
+        _recorderWindow.Closed += (_, _) => _recorderWindow = null;
+        _recorderWindow.Saved += () =>
+        {
+            ApplyHotkeys();
+            _settingsWindow?.ShowMacros();
+        };
+
+        _recorderWindow.Show();
+        _recorderWindow.Activate();
     }
 
     private void ClearHistory(bool includeFavorites)
