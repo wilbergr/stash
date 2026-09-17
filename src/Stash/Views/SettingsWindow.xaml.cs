@@ -16,19 +16,28 @@ public partial class SettingsWindow : Window
     private readonly SettingsStore _settings;
     private readonly HistoryStore _history;
     private readonly ThumbnailCache _thumbnails;
+    private readonly MacroStore _macros;
 
     /// <summary>Raised after settings are saved, so hotkeys and theme can be reapplied.</summary>
     public event Action? Saved;
+
+    /// <summary>Raised when the user asks to record a macro.</summary>
+    public event Action? RecordMacroRequested;
+
+    /// <summary>Raised when macros should be re-read and re-registered.</summary>
+    public event Action? ReloadMacrosRequested;
 
     public SettingsWindow(
         SettingsStore settings,
         HistoryStore history,
         ThumbnailCache thumbnails,
+        MacroStore macros,
         IReadOnlyList<string> hotkeyWarnings)
     {
         _settings = settings;
         _history = history;
         _thumbnails = thumbnails;
+        _macros = macros;
 
         InitializeComponent();
 
@@ -38,7 +47,81 @@ public partial class SettingsWindow : Window
         ClearHistoryButton.Click += (_, _) => OnClear(includeFavorites: false);
         ClearAllButton.Click += (_, _) => OnClear(includeFavorites: true);
 
+        RecordMacroButton.Click += (_, _) => RecordMacroRequested?.Invoke();
+        OpenMacrosButton.Click += (_, _) => OnOpenMacros();
+        ReloadMacrosButton.Click += (_, _) =>
+        {
+            ReloadMacrosRequested?.Invoke();
+            ShowMacros();
+        };
+
         Load(hotkeyWarnings);
+    }
+
+    /// <summary>Re-reads the macro list into the UI, after a record or reload.</summary>
+    public void ShowMacros()
+    {
+        var rows = _macros.Macros
+            .Select(m => new
+            {
+                m.Name,
+                Chord = m.Hotkey,
+                Summary = Summarise(m),
+            })
+            .ToList();
+
+        MacroList.ItemsSource = rows;
+
+        MacroCountText.Text = rows.Count switch
+        {
+            0 => "No macros defined",
+            1 => "1 macro",
+            _ => $"{rows.Count} macros",
+        };
+
+        if (_macros.Problems.Count > 0)
+        {
+            MacroCountText.Text += $" · {_macros.Problems.Count} rejected";
+        }
+    }
+
+    /// <summary>A one-line description of what a macro does.</summary>
+    private static string Summarise(Models.Macro macro)
+    {
+        var parts = macro.Steps.Take(4).Select(s =>
+        {
+            if (!string.IsNullOrEmpty(s.Text))
+            {
+                var t = s.Text.Replace("\r", "").Replace("\n", "\\n");
+                return t.Length > 24 ? $"“{t[..24]}…”" : $"“{t}”";
+            }
+
+            if (!string.IsNullOrWhiteSpace(s.Key))
+            {
+                return s.Key;
+            }
+
+            return $"{s.DelayMs}ms";
+        });
+
+        var text = string.Join(" · ", parts);
+        return macro.Steps.Count > 4 ? $"{text} · +{macro.Steps.Count - 4} more" : text;
+    }
+
+    private void OnOpenMacros()
+    {
+        try
+        {
+            AppPaths.EnsureCreated();
+
+            // UseShellExecute so whatever the user has associated with .json opens.
+            Process.Start(new ProcessStartInfo(AppPaths.MacrosFile) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppPaths.Log("Could not open macros.json.", ex);
+            StatusText.Text = "Windows could not open macros.json. Use 'Open data folder'.";
+        }
     }
 
     /// <summary>
@@ -90,6 +173,10 @@ public partial class SettingsWindow : Window
         SensitiveFlagsCheck.IsChecked = s.RespectSensitiveClipboardFlags;
         IgnoredAppsBox.Text = string.Join(Environment.NewLine, s.IgnoredApps);
 
+        MacrosEnabledCheck.IsChecked = s.MacrosEnabled;
+        MacroDelayBox.Text = s.MacroTypingDelayMs.ToString();
+        ShowMacros();
+
         if (hotkeyWarnings.Count > 0)
         {
             WarningList.ItemsSource = hotkeyWarnings;
@@ -117,6 +204,7 @@ public partial class SettingsWindow : Window
             problems.Add("the quick-slot prefix must be modifiers only, e.g. Ctrl+Alt");
         }
 
+        var macroDelay = ParseInt(MacroDelayBox.Text, 0, 0, 100, "typing pace", problems);
         var maxItems = ParseInt(MaxItemsBox.Text, 400, 10, 5000, "keep at most", problems);
         var retention = ParseInt(RetentionBox.Text, 30, 0, 3650, "forget after", problems);
 
@@ -172,6 +260,9 @@ public partial class SettingsWindow : Window
 
             s.RespectSensitiveClipboardFlags = SensitiveFlagsCheck.IsChecked == true;
             s.IgnoredApps = ignored;
+
+            s.MacrosEnabled = MacrosEnabledCheck.IsChecked == true;
+            s.MacroTypingDelayMs = macroDelay;
         });
 
         Saved?.Invoke();

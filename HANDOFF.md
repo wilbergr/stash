@@ -7,11 +7,11 @@ file once it stops being useful.
 
 | | |
 | --- | --- |
-| Version | **1.1.1**, installed and running on this machine |
+| Version | **1.2.0**, installed and running on this machine |
 | `main` | `4805aaa` — PR #1 (the initial build) is merged |
-| Working branch | `fix/hide-open-action-for-text-clips` — **4 commits ahead of `main`, pushed, fast-forward, not yet merged** |
-| Tests | 37 assertions, 4 suites, all passing |
-| Installer | `dist\Stash-1.1.1.msi` (not in git — `dist/` is ignored) |
+| Working branch | `fix/hide-open-action-for-text-clips` — **6 commits ahead of `main`, pushed, fast-forward, not yet merged** |
+| Tests | 43 assertions, 5 suites |
+| Installer | `dist\Stash-1.2.0.msi` (not in git — `dist/` is ignored) |
 
 The branch name is far too narrow for what it carries. Retitle the PR to
 something like "Usability fixes and a help window" before merging:
@@ -60,6 +60,14 @@ idea.
   1920x1080 @ 100%). Most of the hard bugs in this project were DPI-related, and
   that layout is why they were caught. Be suspicious of anything that looks fine
   on one display.
+
+## The tests are focus-sensitive
+
+Every suite steals the foreground and types. Run them on an idle desktop. On a
+machine in active use they intermittently fail where a suite loses the race for
+foreground — both `Test-Paste` and `Test-Macros` have failed in a full run and
+then passed immediately in isolation. Before treating a failure as a regression,
+re-run that suite on its own.
 
 ## Careful with the tests
 

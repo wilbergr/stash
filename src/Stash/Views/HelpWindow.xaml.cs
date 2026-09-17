@@ -78,6 +78,12 @@ public partial class HelpWindow : Window
             new Shortcut($"{slotPrefix}+1 to 9", "Paste that quick slot from anywhere, without opening Stash at all."),
         };
 
+        MacroList.ItemsSource = new[]
+        {
+            new Shortcut("Your chord", "Whatever hotkey you gave the macro types it into the focused app."),
+            new Shortcut("Ctrl+Alt+Shift+R", "Stops a recording that is in progress."),
+        };
+
         LayoutList.ItemsSource = new[]
         {
             new Shortcut("Ctrl+Arrow", "Dock the panel to that edge of the screen."),
