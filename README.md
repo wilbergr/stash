@@ -153,6 +153,13 @@ steps are left alone; press *Record again* to replace what it types. An existing
 macro is never emptied by starting and stopping a recording that captured
 nothing.
 
+**Pauses are editable.** Each step has a **×** to remove it, and a pause shows
+its length in an editable box — so you can dial a wait up or down without
+re-recording. *Add pause* appends one; *Remove pauses* strips them all, which is
+the button to reach for when you typed a long string carefully and want it to
+replay at full speed. Waits are capped at 5000 ms, and clearing the box removes
+the pause on save.
+
 **Or write one:** macros live in `%LOCALAPPDATA%\Stash\macros.json`, which Stash
 seeds with worked examples on first run. Each step is text to type, a key to
 press, or a pause:
