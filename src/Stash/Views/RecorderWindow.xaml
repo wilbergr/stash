@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Record a macro"
-        Width="520"
-        Height="620"
-        MinWidth="440"
-        MinHeight="480"
+        Width="580"
+        Height="660"
+        MinWidth="460"
+        MinHeight="500"
         WindowStartupLocation="CenterScreen"
         Topmost="True"
         ShowInTaskbar="True"
@@ -92,6 +92,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
                                     <Border Grid.Column="0"
@@ -104,13 +105,44 @@
                                                    HorizontalAlignment="Center" />
                                     </Border>
 
+                                    <!-- Text and key steps: just show them. -->
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding Detail}"
                                                FontFamily="{DynamicResource Font.Mono}"
                                                FontSize="11.5"
                                                Foreground="{DynamicResource Brush.TextPrimary}"
                                                TextWrapping="Wrap"
-                                               VerticalAlignment="Center" />
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding IsDelay, Converter={StaticResource InverseBoolToVis}}" />
+
+                                    <!-- Pause steps are editable in place. -->
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding IsDelay, Converter={StaticResource BoolToVis}}">
+                                        <TextBox Width="68"
+                                                 Style="{StaticResource SettingsTextBox}"
+                                                 MinHeight="24"
+                                                 Padding="7,2,7,2"
+                                                 FontSize="11.5"
+                                                 Text="{Binding DelayText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Text="ms"
+                                                   FontSize="11.5"
+                                                   Foreground="{DynamicResource Brush.TextTertiary}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="7,0,0,0" />
+                                    </StackPanel>
+
+                                    <Button Grid.Column="2"
+                                            Style="{StaticResource IconButton.Danger}"
+                                            Width="22"
+                                            Height="22"
+                                            Margin="6,0,0,0"
+                                            VerticalAlignment="Top"
+                                            Tag="{StaticResource Icon.Close}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="Remove this step"
+                                            Click="OnRemoveStep" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -128,28 +160,41 @@
         </Border>
 
         <!-- ==== Editing the capture ==================================== -->
-        <Grid Grid.Row="3" Margin="0,12,0,0">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+        <!-- A WrapPanel with the checkbox on its own line: five controls will
+             not fit across this window, and they previously overlapped. -->
+        <StackPanel Grid.Row="3" Margin="0,12,0,0">
+            <WrapPanel>
                 <Button x:Name="RecordButton"
                         Style="{StaticResource PrimaryButton}"
                         Content="Start recording"
-                        Margin="0,0,8,0" />
+                        Margin="0,0,8,8" />
                 <Button x:Name="UndoButton"
                         Style="{StaticResource SecondaryButton}"
                         Content="Undo last"
-                        Margin="0,0,8,0" />
+                        Margin="0,0,8,8" />
+                <Button x:Name="AddPauseButton"
+                        Style="{StaticResource SecondaryButton}"
+                        Content="Add pause"
+                        ToolTip="Append a wait, then set its length in the list"
+                        Margin="0,0,8,8" />
+                <Button x:Name="NoPausesButton"
+                        Style="{StaticResource SecondaryButton}"
+                        Content="Remove pauses"
+                        ToolTip="Strip every wait, so the macro types at full speed"
+                        Margin="0,0,8,8" />
                 <Button x:Name="ClearButton"
                         Style="{StaticResource SecondaryButton}"
-                        Content="Clear" />
-            </StackPanel>
+                        Content="Clear"
+                        Margin="0,0,0,8" />
+            </WrapPanel>
 
             <CheckBox x:Name="PausesCheck"
                       Style="{StaticResource ThemedCheckBox}"
-                      Content="Record long pauses"
+                      Content="Record long pauses while recording"
                       ToolTip="Off by default, so the macro replays instantly instead of at the speed you typed it. Turn on only if you need to wait for an app to catch up."
-                      HorizontalAlignment="Right"
-                      VerticalAlignment="Center" />
-        </Grid>
+                      Margin="0,2,0,0"
+                      HorizontalAlignment="Left" />
+        </StackPanel>
 
         <!-- ==== Footer ================================================= -->
         <Grid Grid.Row="4" Margin="0,16,0,0">

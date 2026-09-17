@@ -121,6 +121,10 @@
                            Text="Settings lists every macro you have, with a tick to turn each one on or off, a pencil to change its name, hotkey or steps, and a bin to delete it. Changes apply straight away. Editing reopens the recorder: adjust the name or hotkey and the steps are kept, or press Record again to replace what it types." />
 
                 <TextBlock Style="{StaticResource SettingsCaption}"
+                           Margin="0,0,0,12"
+                           Text="In the editor each step has a cross to remove it, and a pause shows its length in a box you can edit. Add pause appends one; Remove pauses strips them all. That last one is what you want if you typed a long string slowly and the macro now replays at the speed you typed it — recording pauses is off by default for exactly that reason." />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
                            Text="Recording only listens while you have explicitly started it, and it ignores keystrokes that Stash itself sends. Even so, while it is running it sees everything you type — so do not type a password during a recording. Macros are saved as plain text in macros.json, which you can also edit by hand." />
 
                 <!-- ==== Moving the panel ================================= -->
