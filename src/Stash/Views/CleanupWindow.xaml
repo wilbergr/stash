@@ -1,0 +1,133 @@
+<Window x:Class="Stash.Views.CleanupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Clean up history"
+        Width="560"
+        Height="600"
+        MinWidth="480"
+        MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Brush.Panel}"
+        Foreground="{DynamicResource Brush.TextPrimary}"
+        FontFamily="{DynamicResource Font.Ui}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+    <Grid Margin="22,20,22,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ==== What you have now ===================================== -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource Brush.Card}"
+                BorderBrush="{DynamicResource Brush.CardBorder}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="14,12,14,13">
+            <StackPanel>
+                <TextBlock x:Name="TotalsText"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource Brush.TextPrimary}" />
+                <TextBlock x:Name="BreakdownText"
+                           Style="{StaticResource SettingsCaption}"
+                           Margin="0,6,0,0" />
+            </StackPanel>
+        </Border>
+
+        <!-- ==== Filters =============================================== -->
+        <StackPanel Grid.Row="1" Margin="0,18,0,0">
+
+            <TextBlock Text="What to remove" Style="{StaticResource SettingsHeading}" />
+
+            <TextBlock Style="{StaticResource SettingsCaption}"
+                       Margin="0,0,0,12"
+                       Text="Favorites are left alone unless you say otherwise, the same as the age and count limits. Tick nothing and this removes every non-favorite." />
+
+            <!-- Age -->
+            <StackPanel Orientation="Horizontal">
+                <CheckBox x:Name="OlderCheck"
+                          Style="{StaticResource ThemedCheckBox}"
+                          Content="Older than"
+                          VerticalAlignment="Center" />
+                <TextBox x:Name="DaysBox"
+                         Style="{StaticResource SettingsTextBox}"
+                         Width="64"
+                         MinHeight="26"
+                         Padding="8,3,8,3"
+                         Margin="10,0,8,0"
+                         VerticalAlignment="Center" />
+                <TextBlock Text="days"
+                           Style="{StaticResource SettingsLabel}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Kind -->
+            <TextBlock Text="Kind" Style="{StaticResource SettingsLabel}" Margin="0,18,0,0" />
+            <WrapPanel Margin="0,8,0,0">
+                <RadioButton x:Name="KindAny" Style="{StaticResource SegmentChip}" Content="Any" GroupName="Kind" />
+                <RadioButton x:Name="KindText" Style="{StaticResource SegmentChip}" Content="Text" GroupName="Kind" />
+                <RadioButton x:Name="KindLink" Style="{StaticResource SegmentChip}" Content="Links" GroupName="Kind" />
+                <RadioButton x:Name="KindImage" Style="{StaticResource SegmentChip}" Content="Images" GroupName="Kind" />
+                <RadioButton x:Name="KindFiles" Style="{StaticResource SegmentChip}" Content="Files" GroupName="Kind" />
+            </WrapPanel>
+
+            <!-- Usage -->
+            <CheckBox x:Name="NeverPastedCheck"
+                      Style="{StaticResource ThemedCheckBox}"
+                      Content="Only clips I have never pasted"
+                      Margin="0,18,0,0" />
+            <TextBlock Style="{StaticResource SettingsCaption}"
+                       Text="Useful for clearing out the noise of everything you copied in passing, while keeping what you have actually reused." />
+
+            <!-- Favourites -->
+            <CheckBox x:Name="IncludeFavoritesCheck"
+                      Style="{StaticResource ThemedCheckBox}"
+                      Content="Include favorites"
+                      Margin="0,18,0,0" />
+            <TextBlock x:Name="FavoriteWarning"
+                       Style="{StaticResource SettingsCaption}"
+                       Foreground="#FFE08A8A"
+                       Text="Favorites and their quick slots will be deleted too. A quick-slot hotkey with nothing behind it stops working."
+                       Visibility="Collapsed" />
+        </StackPanel>
+
+        <!-- ==== Preview =============================================== -->
+        <Border Grid.Row="2"
+                Margin="0,16,0,0"
+                Background="{DynamicResource Brush.AccentSoft}"
+                BorderBrush="{DynamicResource Brush.Accent}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="14,11,14,12">
+            <StackPanel>
+                <TextBlock x:Name="PreviewText"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource Brush.TextPrimary}"
+                           TextWrapping="Wrap" />
+                <TextBlock x:Name="PreviewDetail"
+                           Style="{StaticResource SettingsCaption}"
+                           Margin="0,5,0,0" />
+            </StackPanel>
+        </Border>
+
+        <!-- ==== Footer ================================================ -->
+        <Grid Grid.Row="3" Margin="0,16,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="CancelButton"
+                        Style="{StaticResource SecondaryButton}"
+                        Content="Cancel"
+                        Margin="0,0,8,0"
+                        IsCancel="True" />
+                <Button x:Name="RemoveButton"
+                        Style="{StaticResource PrimaryButton}"
+                        Content="Remove" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

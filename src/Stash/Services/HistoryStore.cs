@@ -259,6 +259,75 @@ public sealed class HistoryStore
         MarkChanged();
     }
 
+    // ---- Targeted cleanup ---------------------------------------------------
+
+    /// <summary>How many clips <paramref name="filter"/> would remove.</summary>
+    public int CountMatching(PruneFilter filter) => Items.Count(filter.Matches);
+
+    /// <summary>
+    /// Bytes on disk the matching clips occupy. Only images have a body on disk;
+    /// text lives in the index, so this is the figure that actually changes.
+    /// </summary>
+    public long BytesMatching(PruneFilter filter)
+        => Items.Where(filter.Matches).Sum(ImageBytes);
+
+    /// <summary>Total bytes the image store occupies.</summary>
+    public long TotalImageBytes() => Items.Sum(ImageBytes);
+
+    private static long ImageBytes(ClipItem item)
+    {
+        long total = 0;
+
+        // ImageFile and ThumbFile are the same path when the image needed no
+        // downscaling, so count each distinct name once.
+        foreach (var file in new[] { item.ImageFile, item.ThumbFile }.Distinct())
+        {
+            if (file is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                var info = new FileInfo(AppPaths.ImagePath(file));
+                if (info.Exists)
+                {
+                    total += info.Length;
+                }
+            }
+            catch
+            {
+                // A size readout is not worth failing a cleanup over.
+            }
+        }
+
+        return total;
+    }
+
+    /// <summary>
+    /// Removes every clip matching <paramref name="filter"/>, returning how many
+    /// went. Favourites survive unless the filter says otherwise.
+    /// </summary>
+    public int Prune(PruneFilter filter)
+    {
+        var doomed = Items.Where(filter.Matches).ToList();
+
+        foreach (var item in doomed)
+        {
+            Items.Remove(item);
+            DeleteImages(item);
+        }
+
+        if (doomed.Count > 0)
+        {
+            MarkChanged();
+            FlushIfDirty();
+            AppPaths.Log($"Cleanup removed {doomed.Count} clip(s): {filter.Describe()}.");
+        }
+
+        return doomed.Count;
+    }
+
     // ---- Eviction -----------------------------------------------------------
 
     private void Evict()

@@ -41,6 +41,7 @@ public partial class App : Application
     private SettingsWindow? _settingsWindow;
     private HelpWindow? _helpWindow;
     private RecorderWindow? _recorderWindow;
+    private CleanupWindow? _cleanupWindow;
 
     /// <summary>
     /// False until OnStartup finishes. Decides whether an unhandled exception is
@@ -109,6 +110,7 @@ public partial class App : Application
         _tray.SettingsRequested += ShowSettings;
         _tray.HelpRequested += ShowHelp;
         _tray.ReloadMacrosRequested += ReloadMacros;
+        _tray.CleanupRequested += ShowCleanup;
         _tray.DockRequested += edge => _stashWindow.DockTo(edge);
         _tray.ClearRequested += ClearHistory;
         _tray.QuitRequested += Shutdown;
@@ -346,6 +348,7 @@ public partial class App : Application
             ApplyHotkeys();
             _stashViewModel.Rebuild();
         };
+        _settingsWindow.CleanupRequested += ShowCleanup;
         _settingsWindow.RecordMacroRequested += () => ShowRecorder(null);
         _settingsWindow.EditMacroRequested += ShowRecorder;
         _settingsWindow.ReloadMacrosRequested += () =>
@@ -399,6 +402,24 @@ public partial class App : Application
 
         _recorderWindow.Show();
         _recorderWindow.Activate();
+    }
+
+    private void ShowCleanup()
+    {
+        if (_cleanupWindow is not null)
+        {
+            _cleanupWindow.Activate();
+            return;
+        }
+
+        _stashWindow.HidePanel();
+
+        _cleanupWindow = new CleanupWindow(_history, _settings, _thumbnails);
+        _cleanupWindow.Closed += (_, _) => _cleanupWindow = null;
+        _cleanupWindow.Cleaned += () => _stashViewModel.Rebuild();
+
+        _cleanupWindow.Show();
+        _cleanupWindow.Activate();
     }
 
     private void ClearHistory(bool includeFavorites)

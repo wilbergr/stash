@@ -238,6 +238,26 @@ organization's data-handling policy before leaving it running.
 
 You can clear history from the tray menu or Settings at any time.
 
+### Cleaning up
+
+Settings → **Clean up…** (also in the tray menu) removes clips selectively
+rather than all at once. It shows what you have — counts by kind and how much
+disk the images occupy — and lets you filter by:
+
+- **Age** — older than N days
+- **Kind** — text, links, images or files
+- **Never pasted** — the noise you copied in passing, keeping what you've reused
+- **Include favorites** — off by default, so favorites are protected
+
+It previews the effect live (*"Will remove 5 of 91 clips, freeing 778 KB"*) and
+confirms before deleting, because this isn't undoable. Tick nothing and it
+removes every non-favorite, the same as *Clear history*.
+
+Worth knowing: only images have a body on disk — text lives in the index — so the
+space figure is about images. And the automatic limits (400 clips, 30 days,
+favorites exempt) already prune in the background; this is for when you want to
+act now, or more narrowly.
+
 ## How it's built
 
 WPF on .NET 10, with **no NuGet dependencies at all** — the only non-framework
