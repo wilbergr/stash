@@ -6,11 +6,19 @@ public enum HotkeyKind
     /// <summary>The main chord: show the stash.</summary>
     ShowPanel,
 
-    /// <summary>A quick-slot chord: paste favourite slot <see cref="HotkeyPressed.Slot"/> immediately.</summary>
+    /// <summary>A quick-slot chord: paste favourite slot <see cref="HotkeyPressed.Index"/> immediately.</summary>
     QuickSlot,
+
+    /// <summary>A macro chord: type the macro at <see cref="HotkeyPressed.Index"/>.</summary>
+    Macro,
 }
 
-public readonly record struct HotkeyPressed(HotkeyKind Kind, int Slot);
+/// <summary>
+/// Which hotkey fired. <see cref="Index"/> is the quick-slot number (1-9) for
+/// <see cref="HotkeyKind.QuickSlot"/>, or the zero-based macro position for
+/// <see cref="HotkeyKind.Macro"/>.
+/// </summary>
+public readonly record struct HotkeyPressed(HotkeyKind Kind, int Index);
 
 /// <summary>
 /// Owns every system-wide hotkey Stash registers: the chord that opens the stash,
@@ -27,6 +35,8 @@ public sealed class HotkeyService : IDisposable
 {
     private const int MainHotkeyId = 0xB0_00;
     private const int SlotHotkeyIdBase = 0xB0_10;
+    private const int MacroHotkeyIdBase = 0xB0_40;
+    private const int MaxMacroHotkeys = 64;
 
     /// <summary>
     /// Tried in order when the user's chord will not register. Ctrl+Alt+V leads
@@ -51,6 +61,10 @@ public sealed class HotkeyService : IDisposable
     /// <summary>Quick-slot number to the chord that took effect for it.</summary>
     public IReadOnlyDictionary<int, string> SlotChords => _slotChords;
     private readonly Dictionary<int, string> _slotChords = new();
+
+    /// <summary>Macro position to the chord that took effect for it.</summary>
+    public IReadOnlyDictionary<int, string> MacroChords => _macroChords;
+    private readonly Dictionary<int, string> _macroChords = new();
 
     /// <summary>Human-readable notes about chords that could not be registered.</summary>
     public IReadOnlyList<string> Warnings => _warnings;
@@ -84,17 +98,28 @@ public sealed class HotkeyService : IDisposable
             return true;
         }
 
+        if (id >= MacroHotkeyIdBase && id < MacroHotkeyIdBase + MaxMacroHotkeys)
+        {
+            Pressed?.Invoke(new HotkeyPressed(HotkeyKind.Macro, id - MacroHotkeyIdBase));
+            return true;
+        }
+
         return false;
     }
 
     /// <summary>
     /// Re-registers everything from scratch. Safe to call whenever settings change.
     /// </summary>
-    public void Apply(string? preferredChord, bool quickSlotsEnabled, string quickSlotModifiers)
+    public void Apply(
+        string? preferredChord,
+        bool quickSlotsEnabled,
+        string quickSlotModifiers,
+        IReadOnlyList<Models.Macro>? macros = null)
     {
         UnregisterAll();
         _warnings.Clear();
         _slotChords.Clear();
+        _macroChords.Clear();
 
         StashChord = RegisterMain(preferredChord);
         if (StashChord is null)
@@ -110,6 +135,41 @@ public sealed class HotkeyService : IDisposable
         if (quickSlotsEnabled)
         {
             RegisterQuickSlots(quickSlotModifiers);
+        }
+
+        if (macros is { Count: > 0 })
+        {
+            RegisterMacros(macros);
+        }
+    }
+
+    /// <summary>
+    /// Registers one chord per macro. Macros are registered last, so a macro that
+    /// collides with the stash chord or a quick slot loses and is reported rather
+    /// than silently stealing a key the user relies on.
+    /// </summary>
+    private void RegisterMacros(IReadOnlyList<Models.Macro> macros)
+    {
+        var taken = new List<string>();
+
+        for (var i = 0; i < macros.Count && i < MaxMacroHotkeys; i++)
+        {
+            var macro = macros[i];
+
+            if (TryRegister(MacroHotkeyIdBase + i, macro.Hotkey, out var display))
+            {
+                _macroChords[i] = display;
+            }
+            else
+            {
+                taken.Add($"'{macro.Name}' ({macro.Hotkey})");
+            }
+        }
+
+        if (taken.Count > 0)
+        {
+            _warnings.Add(
+                $"These macro hotkeys are already in use, by Stash itself or another app, so they will not run: {string.Join(", ", taken)}.");
         }
     }
 

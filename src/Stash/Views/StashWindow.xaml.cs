@@ -47,8 +47,33 @@ public partial class StashWindow : Window
     private bool _isDragging;
     private bool _applyingLayout;
 
+    /// <summary>
+    /// Monitor the panel was dropped on, if it has just been dragged. Placement
+    /// normally follows the monitor of the window the user came from, which is
+    /// right when opening but wrong immediately after a drag: it would re-dock the
+    /// panel on the original monitor and yank it away from where it was dropped.
+    /// Cleared on the next show.
+    /// </summary>
+    private MonitorArea? _dropMonitor;
+
+    /// <summary>
+    /// Orientation the card list is currently built for, so the containers are
+    /// only regenerated when it genuinely changes. Null until first applied.
+    /// </summary>
+    private bool? _appliedVertical;
+
+    /// <summary>
+    /// Guards <see cref="EnsureWindowRect"/> against ping-ponging with WPF. One
+    /// corrective pass per layout, then leave it alone: an endless correction
+    /// loop shows up as the window flashing.
+    /// </summary>
+    private bool _placementCorrected;
+
     /// <summary>Raised when the user asks for the settings window.</summary>
     public event Action? SettingsRequested;
+
+    /// <summary>Raised when the user asks for the help window.</summary>
+    public event Action? HelpRequested;
 
     public StashWindow(StashViewModel viewModel, SettingsStore settings)
     {
@@ -70,6 +95,7 @@ public partial class StashWindow : Window
         _vm.PropertyChanged += OnViewModelPropertyChanged;
 
         SettingsButton.Click += (_, _) => SettingsRequested?.Invoke();
+        HelpButton.Click += (_, _) => HelpRequested?.Invoke();
         CloseButton.Click += (_, _) => HidePanel();
 
         HeaderBar.MouseLeftButtonDown += OnHeaderDragStart;
@@ -85,7 +111,18 @@ public partial class StashWindow : Window
         Deactivated += (_, _) => HidePanel();
 
         // Moving between monitors of different scale changes every derived size.
-        DpiChanged += (_, _) => ApplyLayout(_vm.TargetWindow);
+        //
+        // Ignored mid-drag: DragMove is a modal loop the user is driving, and
+        // crossing a DPI boundary during it would otherwise call ApplyLayout,
+        // SetWindowPos the window back to its docked position, and fight the
+        // drag. That produced rapid flashing when dragging across monitors.
+        DpiChanged += (_, _) =>
+        {
+            if (!_isDragging)
+            {
+                ApplyLayout(_vm.TargetWindow);
+            }
+        };
 
         // Create the HWND up front so SetWindowPos can place the window before it
         // is ever shown, and so the first hotkey press does not pay for it.
@@ -115,6 +152,10 @@ public partial class StashWindow : Window
         _isClosing = false;
         _vm.TargetWindow = target;
 
+        // Opening follows the app the user is in, so forget where it was last
+        // dropped.
+        _dropMonitor = null;
+
         _edge = DockEdgeExtensions.Parse(_settings.Current.Edge);
         _vm.Edge = _edge;
 
@@ -131,6 +172,16 @@ public partial class StashWindow : Window
         ApplyLayout(target);
 
         Activate();
+
+        // Show plus Activate is not always enough when the request came from
+        // elsewhere — a relaunch signalling the running copy, or the tray. If we
+        // did not actually get the foreground, the Deactivated handler fires and
+        // the panel vanishes the instant it appears. Force it the documented way.
+        if (NativeMethods.GetForegroundWindow() != Handle)
+        {
+            ForegroundApp.Restore(Handle);
+        }
+
         AnimateIn();
 
         // Focus the search box so the user can type to filter immediately.
@@ -244,10 +295,13 @@ public partial class StashWindow : Window
         }
 
         _applyingLayout = true;
+        _placementCorrected = false;
 
         try
         {
-            _layout = StashPlacement.Compute(_edge, _settings.Current, target);
+            _layout = _dropMonitor is { } dropped
+                ? StashPlacement.Compute(_edge, _settings.Current, dropped)
+                : StashPlacement.Compute(_edge, _settings.Current, target);
 
             PushWindowRect();
 
@@ -298,6 +352,13 @@ public partial class StashWindow : Window
     /// </summary>
     private void EnsureWindowRect()
     {
+        // Never while the user is dragging: the window is meant to be wherever
+        // they have moved it to.
+        if (_isDragging || _placementCorrected)
+        {
+            return;
+        }
+
         var hwnd = Handle;
         if (hwnd == IntPtr.Zero || _layout.WindowPixels.IsEmpty)
         {
@@ -325,6 +386,7 @@ public partial class StashWindow : Window
         AppPaths.Log(
             $"Placement corrected: window was at {actual}, expected {_layout.WindowPixels}.");
 
+        _placementCorrected = true;
         PushWindowRect();
     }
 
@@ -333,13 +395,38 @@ public partial class StashWindow : Window
     {
         var vertical = _edge.IsVertical();
 
-        CardList.ItemTemplate = (DataTemplate)FindResource(vertical ? "RowCardTemplate" : "TileCardTemplate");
-        CardList.ItemsPanel = (ItemsPanelTemplate)FindResource(vertical ? "VerticalCardsPanel" : "HorizontalCardsPanel");
+        // Replacing ItemsPanel or ItemTemplate throws away every container and
+        // regenerates them. Doing that when the orientation has not actually
+        // changed — docking bottom to top, say — is pure churn, and churn during
+        // a resize is what triggers WPF's "content generation is in progress"
+        // re-entrancy failure.
+        if (_appliedVertical != vertical)
+        {
+            _appliedVertical = vertical;
+
+            CardList.ItemTemplate = (DataTemplate)FindResource(vertical ? "RowCardTemplate" : "TileCardTemplate");
+            CardList.ItemsPanel = (ItemsPanelTemplate)FindResource(vertical ? "VerticalCardsPanel" : "HorizontalCardsPanel");
+        }
 
         ScrollViewer.SetHorizontalScrollBarVisibility(CardList,
             vertical ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(CardList,
             vertical ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled);
+
+        // A right-aligned TextBox sizes to its content, which made the search
+        // field visibly grow and shrink as the user typed. On a wide dock an
+        // explicit width pins it against the buttons; in the narrow left/right
+        // docks 320 would not fit, so let it stretch to whatever the column has.
+        if (vertical)
+        {
+            SearchBox.Width = double.NaN;
+            SearchBox.HorizontalAlignment = HorizontalAlignment.Stretch;
+        }
+        else
+        {
+            SearchBox.Width = 320;
+            SearchBox.HorizontalAlignment = HorizontalAlignment.Right;
+        }
     }
 
     private void ApplyGripPlacement()
@@ -431,6 +518,12 @@ public partial class StashWindow : Window
 
         _isDragging = true;
 
+        // The clip that keeps the slide overhang off the neighbouring monitor is
+        // aligned to that monitor but expressed in window coordinates, so it
+        // travels with the window: during a drag it slices pieces off the panel.
+        // Drop it for the duration; ApplyLayout restores it on drop.
+        WindowRoot.Clip = null;
+
         try
         {
             // DragMove blocks until the button is released.
@@ -462,15 +555,29 @@ public partial class StashWindow : Window
             return;
         }
 
-        // Read the truth back from the OS rather than trusting WPF's units, then
-        // recover the panel's own rectangle from inside the window.
-        var monitor = ScreenGeometry.ForWindowOrCursor(hwnd);
+        // Locate the panel inside the window using the scale the layout was built
+        // with, then ask which monitor that rectangle actually sits on.
+        //
+        // Deliberately not MonitorFromWindow: the window is far larger than the
+        // panel and deliberately hangs off the screen edge, so the monitor with
+        // the largest slice of *window* is frequently not the monitor the user
+        // sees the panel on. Snapping then measured against the wrong work area
+        // and appeared to do nothing.
+        var panelPixels = PanelRectFrom(windowPixels, _layout.Scale);
 
-        var panelPixels = new Rect(
-            windowPixels.Left + monitor.ToPixels(_layout.PanelMargin.Left),
-            windowPixels.Top + monitor.ToPixels(_layout.PanelMargin.Top),
-            monitor.ToPixels(_layout.PanelSize.Width),
-            monitor.ToPixels(_layout.PanelSize.Height));
+        var monitor = ScreenGeometry.ForPoint(new Point(
+            panelPixels.Left + (panelPixels.Width / 2),
+            panelPixels.Top + (panelPixels.Height / 2)));
+
+        // Re-measure with that monitor's scale in case the drag crossed a DPI
+        // boundary, which changes where the panel sits inside the window.
+        if (Math.Abs(monitor.Scale - _layout.Scale) > 0.01)
+        {
+            panelPixels = PanelRectFrom(windowPixels, monitor.Scale);
+        }
+
+        // Re-dock relative to where it was dropped, not where it came from.
+        _dropMonitor = monitor;
 
         var target = StashPlacement.SnapTarget(panelPixels, monitor, _settings.Current.SnapDistance);
 
@@ -495,6 +602,16 @@ public partial class StashWindow : Window
             DockTo(target);
         }
     }
+
+    /// <summary>
+    /// Where the visible panel sits inside the window, in real pixels. The panel
+    /// is inset by the shadow pad plus, on the docked side, the slide travel.
+    /// </summary>
+    private Rect PanelRectFrom(Rect windowPixels, double scale) => new(
+        windowPixels.Left + (_layout.PanelMargin.Left * scale),
+        windowPixels.Top + (_layout.PanelMargin.Top * scale),
+        Math.Max(1, _layout.PanelSize.Width * scale),
+        Math.Max(1, _layout.PanelSize.Height * scale));
 
     private void OnResizeDrag(object sender, DragDeltaEventArgs e)
     {
@@ -551,11 +668,27 @@ public partial class StashWindow : Window
         }
 
         // Deferred: the container may not exist yet right after a rebuild.
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        // Background priority rather than Loaded so it runs after layout has
+        // settled — ScrollIntoView reaches into the item generator, and calling
+        // it while WPF is still generating containers throws "Cannot call
+        // StartAt when content generation is in progress", which crashed the app
+        // when a resize and a selection change coincided during a drag.
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
         {
-            if (index < CardList.Items.Count)
+            if (!IsVisible || _isDragging || index >= CardList.Items.Count)
+            {
+                return;
+            }
+
+            try
             {
                 CardList.ScrollIntoView(CardList.Items[index]);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Bringing a card into view is a nicety. If the generator is busy
+                // anyway, skip it rather than take the app down.
+                AppPaths.Log("ScrollIntoView skipped; the item generator was busy.", ex);
             }
         });
     }
@@ -680,6 +813,11 @@ public partial class StashWindow : Window
 
             case Key.OemComma when ctrl:
                 SettingsRequested?.Invoke();
+                e.Handled = true;
+                break;
+
+            case Key.F1:
+                HelpRequested?.Invoke();
                 e.Handled = true;
                 break;
         }

@@ -103,6 +103,7 @@ $suites = @(
     'Test-ContentTypes.ps1',
     'Test-Paste.ps1',
     'Test-QuickSlots.ps1',
+    'Test-Macros.ps1',
     'Test-Placement.ps1'
 )
 

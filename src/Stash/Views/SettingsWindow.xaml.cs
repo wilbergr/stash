@@ -16,19 +16,31 @@ public partial class SettingsWindow : Window
     private readonly SettingsStore _settings;
     private readonly HistoryStore _history;
     private readonly ThumbnailCache _thumbnails;
+    private readonly MacroStore _macros;
 
     /// <summary>Raised after settings are saved, so hotkeys and theme can be reapplied.</summary>
     public event Action? Saved;
+
+    /// <summary>Raised when the user asks to record a macro.</summary>
+    public event Action? RecordMacroRequested;
+
+    /// <summary>Raised with a copy of the macro the user wants to edit.</summary>
+    public event Action<Models.Macro>? EditMacroRequested;
+
+    /// <summary>Raised when macros should be re-read and re-registered.</summary>
+    public event Action? ReloadMacrosRequested;
 
     public SettingsWindow(
         SettingsStore settings,
         HistoryStore history,
         ThumbnailCache thumbnails,
+        MacroStore macros,
         IReadOnlyList<string> hotkeyWarnings)
     {
         _settings = settings;
         _history = history;
         _thumbnails = thumbnails;
+        _macros = macros;
 
         InitializeComponent();
 
@@ -38,7 +50,191 @@ public partial class SettingsWindow : Window
         ClearHistoryButton.Click += (_, _) => OnClear(includeFavorites: false);
         ClearAllButton.Click += (_, _) => OnClear(includeFavorites: true);
 
+        RecordMacroButton.Click += (_, _) => RecordMacroRequested?.Invoke();
+        OpenMacrosButton.Click += (_, _) => OnOpenMacros();
+        ReloadMacrosButton.Click += (_, _) =>
+        {
+            ReloadMacrosRequested?.Invoke();
+            ShowMacros();
+        };
+
         Load(hotkeyWarnings);
+    }
+
+    /// <summary>Row shape for the macro list.</summary>
+    private sealed record MacroRow(
+        string Id,
+        string Name,
+        string Chord,
+        string Summary,
+        bool Enabled,
+        string? Problem,
+        bool HasProblem,
+        double DimWhenOff);
+
+    /// <summary>
+    /// Re-reads the macro list into the UI, after a record, edit or reload.
+    /// </summary>
+    /// <remarks>
+    /// Lists every entry in the file, not just the active ones, so a disabled or
+    /// broken macro can still be re-enabled, edited or deleted from here.
+    /// </remarks>
+    public void ShowMacros()
+    {
+        // Suppress the checkbox handlers while the list is rebuilt, or assigning
+        // ItemsSource fires Checked/Unchecked and writes the file back.
+        _populating = true;
+
+        try
+        {
+            var rows = _macros.All
+                .Select(e => new MacroRow(
+                    e.Macro.Id,
+                    e.Macro.Name,
+                    e.Macro.Hotkey,
+                    Summarise(e.Macro),
+                    e.Macro.Enabled,
+                    // "Disabled" is self-evident from the unticked box.
+                    e.Problem == "Disabled" ? null : e.Problem,
+                    e.Problem is not null && e.Problem != "Disabled",
+                    e.Active ? 1.0 : 0.45))
+                .ToList();
+
+            MacroList.ItemsSource = rows;
+
+            var active = rows.Count(r => r.Enabled && !r.HasProblem);
+
+            MacroCountText.Text = rows.Count switch
+            {
+                0 => "No macros defined",
+                1 => active == 1 ? "1 macro" : "1 macro, inactive",
+                _ => $"{rows.Count} macros, {active} active",
+            };
+        }
+        finally
+        {
+            _populating = false;
+        }
+    }
+
+    private bool _populating;
+
+    private static string? IdOf(object sender)
+        => sender is FrameworkElement { } element
+            ? (element as System.Windows.Controls.Primitives.ButtonBase)?.CommandParameter as string ?? element.Tag as string
+            : null;
+
+    private void OnMacroEnabledChanged(object sender, RoutedEventArgs e)
+    {
+        if (_populating || sender is not System.Windows.Controls.CheckBox box || box.Tag is not string id)
+        {
+            return;
+        }
+
+        if (!_macros.SetEnabled(id, box.IsChecked == true, out var error))
+        {
+            StatusText.Text = error ?? "That macro could not be changed.";
+
+            // Put the tick back where it was, since the change did not take.
+            ShowMacros();
+            return;
+        }
+
+        StatusText.Text = box.IsChecked == true ? "Macro enabled." : "Macro disabled.";
+        ReloadMacrosRequested?.Invoke();
+        ShowMacros();
+    }
+
+    private void OnEditMacro(object sender, RoutedEventArgs e)
+    {
+        if (IdOf(sender) is not { } id)
+        {
+            return;
+        }
+
+        var macro = _macros.All.FirstOrDefault(m => m.Macro.Id == id)?.Macro;
+        if (macro is null)
+        {
+            return;
+        }
+
+        EditMacroRequested?.Invoke(macro.Clone());
+    }
+
+    private void OnDeleteMacro(object sender, RoutedEventArgs e)
+    {
+        if (IdOf(sender) is not { } id)
+        {
+            return;
+        }
+
+        var macro = _macros.All.FirstOrDefault(m => m.Macro.Id == id)?.Macro;
+        if (macro is null)
+        {
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            this,
+            $"Delete the macro '{macro.Name}' on {macro.Hotkey}?\n\nThis cannot be undone.",
+            "Delete macro",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        if (!_macros.Delete(id, out var error))
+        {
+            StatusText.Text = error ?? "That macro could not be deleted.";
+            return;
+        }
+
+        StatusText.Text = $"Deleted '{macro.Name}'.";
+        ReloadMacrosRequested?.Invoke();
+        ShowMacros();
+    }
+
+    /// <summary>A one-line description of what a macro does.</summary>
+    private static string Summarise(Models.Macro macro)
+    {
+        var parts = macro.Steps.Take(4).Select(s =>
+        {
+            if (!string.IsNullOrEmpty(s.Text))
+            {
+                var t = s.Text.Replace("\r", "").Replace("\n", "\\n");
+                return t.Length > 24 ? $"“{t[..24]}…”" : $"“{t}”";
+            }
+
+            if (!string.IsNullOrWhiteSpace(s.Key))
+            {
+                return s.Key;
+            }
+
+            return $"{s.DelayMs}ms";
+        });
+
+        var text = string.Join(" · ", parts);
+        return macro.Steps.Count > 4 ? $"{text} · +{macro.Steps.Count - 4} more" : text;
+    }
+
+    private void OnOpenMacros()
+    {
+        try
+        {
+            AppPaths.EnsureCreated();
+
+            // UseShellExecute so whatever the user has associated with .json opens.
+            Process.Start(new ProcessStartInfo(AppPaths.MacrosFile) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppPaths.Log("Could not open macros.json.", ex);
+            StatusText.Text = "Windows could not open macros.json. Use 'Open data folder'.";
+        }
     }
 
     /// <summary>
@@ -90,6 +286,10 @@ public partial class SettingsWindow : Window
         SensitiveFlagsCheck.IsChecked = s.RespectSensitiveClipboardFlags;
         IgnoredAppsBox.Text = string.Join(Environment.NewLine, s.IgnoredApps);
 
+        MacrosEnabledCheck.IsChecked = s.MacrosEnabled;
+        MacroDelayBox.Text = s.MacroTypingDelayMs.ToString();
+        ShowMacros();
+
         if (hotkeyWarnings.Count > 0)
         {
             WarningList.ItemsSource = hotkeyWarnings;
@@ -117,6 +317,7 @@ public partial class SettingsWindow : Window
             problems.Add("the quick-slot prefix must be modifiers only, e.g. Ctrl+Alt");
         }
 
+        var macroDelay = ParseInt(MacroDelayBox.Text, 0, 0, 100, "typing pace", problems);
         var maxItems = ParseInt(MaxItemsBox.Text, 400, 10, 5000, "keep at most", problems);
         var retention = ParseInt(RetentionBox.Text, 30, 0, 3650, "forget after", problems);
 
@@ -172,6 +373,9 @@ public partial class SettingsWindow : Window
 
             s.RespectSensitiveClipboardFlags = SensitiveFlagsCheck.IsChecked == true;
             s.IgnoredApps = ignored;
+
+            s.MacrosEnabled = MacrosEnabledCheck.IsChecked == true;
+            s.MacroTypingDelayMs = macroDelay;
         });
 
         Saved?.Invoke();

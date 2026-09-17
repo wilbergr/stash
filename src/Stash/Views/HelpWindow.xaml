@@ -1,0 +1,183 @@
+<Window x:Class="Stash.Views.HelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="How to use Stash"
+        Width="620"
+        Height="760"
+        MinWidth="520"
+        MinHeight="480"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Brush.Panel}"
+        Foreground="{DynamicResource Brush.TextPrimary}"
+        FontFamily="{DynamicResource Font.Ui}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+    <Window.Resources>
+
+        <!-- One row of the shortcut tables: a keycap and what it does. -->
+        <DataTemplate x:Key="ShortcutRowTemplate">
+            <Grid Margin="0,0,0,7">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="132" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Style="{StaticResource KeyCap}"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Margin="0,1,10,0">
+                    <TextBlock Text="{Binding Keys}" Style="{StaticResource KeyCapText}" />
+                </Border>
+
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Description}"
+                           FontSize="12.5"
+                           Foreground="{DynamicResource Brush.TextSecondary}"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+            </Grid>
+        </DataTemplate>
+
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" Padding="24,22,24,22" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer.Resources>
+                <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinScrollBar}" />
+            </ScrollViewer.Resources>
+
+            <StackPanel>
+
+                <!-- ==== The one thing to remember ========================= -->
+                <Border Background="{DynamicResource Brush.AccentSoft}"
+                        BorderBrush="{DynamicResource Brush.Accent}"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="16,14,16,15">
+                    <StackPanel>
+                        <TextBlock FontFamily="{DynamicResource Font.Display}"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Brush.TextPrimary}"
+                                   Text="Stash remembers what you copy" />
+                        <TextBlock Style="{StaticResource SettingsCaption}"
+                                   Foreground="{DynamicResource Brush.TextSecondary}"
+                                   FontSize="12.5"
+                                   Margin="0,7,0,0">
+                            <Run Text="Keep working as normal. Every time you copy something, Stash files it away. When you need it back, press" />
+                            <Run Text="{Binding OpenChord, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" />
+                            <Run Text="and a panel slides out with everything recent. Click a card, or select it and press Enter, and it pastes straight back into whatever you were working in." />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- ==== Getting started =================================== -->
+                <TextBlock Text="The basics" Style="{StaticResource SettingsHeading}" Margin="0,24,0,10" />
+
+                <ItemsControl x:Name="BasicsList" ItemTemplate="{StaticResource ShortcutRowTemplate}" />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="You do not need to click into the search box — it already has focus, so just start typing to filter. Arrow keys still move between cards while you type." />
+
+                <!-- ==== Using a clip ===================================== -->
+                <TextBlock Text="Doing something with a clip" Style="{StaticResource SettingsHeading}" Margin="0,24,0,10" />
+
+                <ItemsControl x:Name="ClipActionsList" ItemTemplate="{StaticResource ShortcutRowTemplate}" />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="Hovering a card also reveals buttons for these. Open only appears on clips that have somewhere to go: links, files and images." />
+
+                <!-- ==== Favourites and quick slots ======================= -->
+                <TextBlock Text="Favorites and quick slots" Style="{StaticResource SettingsHeading}" Margin="0,24,0,10" />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Margin="0,0,0,12"
+                           Text="Starring a clip keeps it forever — favorites are never removed by the age or count limits. A favorite can also be bound to a numbered quick slot, which gives it a hotkey of its own. That is the fastest way to reuse something you paste constantly, like an address block or a signature: once it is in slot 3, Ctrl+Alt+3 pastes it from anywhere without the panel even appearing." />
+
+                <ItemsControl x:Name="FavoritesList" ItemTemplate="{StaticResource ShortcutRowTemplate}" />
+
+                <!-- ==== Macros =========================================== -->
+                <TextBlock Text="Macros: typing instead of pasting" Style="{StaticResource SettingsHeading}" Margin="0,24,0,10" />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Margin="0,0,0,12"
+                           Text="A macro is a hotkey that types for you. Where a quick slot pastes through the clipboard, a macro presses the keys itself — so it works in fields that refuse pasted text, in remote sessions where the clipboard is not shared, and anywhere you need real keys such as Tab to move between form fields. It also leaves whatever is on your clipboard alone." />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Margin="0,0,0,12"
+                           Text="The easiest way to make one is to record it: Settings, then Record a macro. Press Start, switch to the app you want, and type. Stash watches the keys, collecting letters into text and turning keys like Tab or Enter into steps of their own. Press Ctrl+Alt+Shift+R to stop, give it a name and a hotkey, and save." />
+
+                <ItemsControl x:Name="MacroList" ItemTemplate="{StaticResource ShortcutRowTemplate}" />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Margin="0,0,0,12"
+                           Text="Settings lists every macro you have, with a tick to turn each one on or off, a pencil to change its name, hotkey or steps, and a bin to delete it. Changes apply straight away. Editing reopens the recorder: adjust the name or hotkey and the steps are kept, or press Record again to replace what it types." />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="Recording only listens while you have explicitly started it, and it ignores keystrokes that Stash itself sends. Even so, while it is running it sees everything you type — so do not type a password during a recording. Macros are saved as plain text in macros.json, which you can also edit by hand." />
+
+                <!-- ==== Moving the panel ================================= -->
+                <TextBlock Text="Moving and resizing the panel" Style="{StaticResource SettingsHeading}" Margin="0,24,0,10" />
+
+                <ItemsControl x:Name="LayoutList" ItemTemplate="{StaticResource ShortcutRowTemplate}" />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="You can also drag the panel by its header to move it. Drop it near an edge and it docks there; drop it anywhere else and it floats. To resize, hover the panel and drag the thin grip on the edge that faces into the screen. Docked left or right, the cards become a vertical list instead of a strip." />
+
+                <!-- ==== Views ============================================ -->
+                <TextBlock Text="Views" Style="{StaticResource SettingsHeading}" Margin="0,24,0,10" />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="The row of chips filters what you are looking at: Recents is everything newest-first, Favorites is what you have starred, then Text, Links, Images and Files narrow to one kind, and Most used ranks by how often you have pasted something. Tab cycles through them." />
+
+                <!-- ==== Privacy ========================================== -->
+                <TextBlock Text="What Stash does with your data" Style="{StaticResource SettingsHeading}" Margin="0,24,0,10" />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="Everything stays on this machine. Stash makes no network connections at all. When an app marks a copy as sensitive — password managers do this — Stash does not store it, and you can add other apps to an ignore list in Settings." />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Margin="0,9,0,0"
+                           Text="Worth knowing: your history is saved as ordinary files and is not encrypted. Anything that can already read your user folder can read your clipboard history. That is the same as the clipboard history built into Windows, but if you copy things that must not sit on disk, clear the history or add that app to the ignore list." />
+
+                <TextBlock x:Name="DataPathText"
+                           Style="{StaticResource SettingsCaption}"
+                           Margin="0,9,0,0" />
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ==== Footer ================================================== -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource Brush.Divider}"
+                BorderThickness="0,1,0,0"
+                Padding="24,14,24,14">
+            <Grid>
+                <TextBlock x:Name="VersionText"
+                           Style="{StaticResource SettingsCaption}"
+                           Margin="0"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Left" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="SettingsButton"
+                            Style="{StaticResource SecondaryButton}"
+                            Content="Open Settings"
+                            Margin="0,0,8,0" />
+                    <Button x:Name="CloseButton"
+                            Style="{StaticResource PrimaryButton}"
+                            Content="Got it"
+                            IsDefault="True"
+                            IsCancel="True" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

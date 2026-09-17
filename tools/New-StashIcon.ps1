@@ -85,56 +85,41 @@ function New-StashBitmap {
         finally { $body.Dispose() }
 
         # --- Two offset cards ---------------------------------------------
-        # At the smallest sizes the second card and the baseline collapse into
-        # noise, so below 20px we draw a single bold card instead.
-        $detailed = $Size -ge 20
-
-        $cardRadius = [Math]::Max(0.6, $s * 0.05)
+        # A copy mark: a solid card with a ghost card peeking out behind it,
+        # offset up and to the right. The pair is centred on the tile as a whole
+        # rather than each card individually, so the composition sits square.
+        #
+        # The ghost is more opaque at small sizes: below about 24px a 150-alpha
+        # white over the accent blue loses too much contrast to read as a second
+        # card at all.
+        $cardRadius = [Math]::Max(0.6, $s * 0.055)
         $white = [System.Drawing.Color]::FromArgb(255, 255, 255, 255)
-        $ghost = [System.Drawing.Color]::FromArgb(150, 255, 255, 255)
+        $ghostAlpha = if ($Size -lt 24) { 190 } else { 150 }
+        $ghost = [System.Drawing.Color]::FromArgb($ghostAlpha, 255, 255, 255)
 
-        if ($detailed) {
-            # Back card, inset and translucent.
-            $backPath = New-RoundedPath -X ($s * 0.30) -Y ($s * 0.215) -W ($s * 0.44) -H ($s * 0.30) -Radius $cardRadius
-            try {
-                $b = New-Object System.Drawing.SolidBrush $ghost
-                try { $g.FillPath($b, $backPath) } finally { $b.Dispose() }
-            }
-            finally { $backPath.Dispose() }
+        $cardW = $s * 0.44
+        $cardH = $s * 0.36
+        $offset = $s * 0.10
 
-            # Front card.
-            $frontPath = New-RoundedPath -X ($s * 0.215) -Y ($s * 0.315) -W ($s * 0.44) -H ($s * 0.30) -Radius $cardRadius
-            try {
-                $b = New-Object System.Drawing.SolidBrush $white
-                try { $g.FillPath($b, $frontPath) } finally { $b.Dispose() }
-            }
-            finally { $frontPath.Dispose() }
+        # Combined bounds span cardW + offset, centred on the tile.
+        $left = ($s - ($cardW + $offset)) / 2
+        $top = ($s - ($cardH + $offset)) / 2
 
-            # The stash itself.
-            $barH = [Math]::Max(1.0, $s * 0.062)
-            $barPath = New-RoundedPath -X ($s * 0.215) -Y ($s * 0.695) -W ($s * 0.57) -H $barH -Radius ($barH / 2)
-            try {
-                $b = New-Object System.Drawing.SolidBrush $white
-                try { $g.FillPath($b, $barPath) } finally { $b.Dispose() }
-            }
-            finally { $barPath.Dispose() }
+        # Back card: up and to the right, translucent.
+        $backPath = New-RoundedPath -X ($left + $offset) -Y $top -W $cardW -H $cardH -Radius $cardRadius
+        try {
+            $b = New-Object System.Drawing.SolidBrush $ghost
+            try { $g.FillPath($b, $backPath) } finally { $b.Dispose() }
         }
-        else {
-            $cardPath = New-RoundedPath -X ($s * 0.25) -Y ($s * 0.27) -W ($s * 0.50) -H ($s * 0.30) -Radius $cardRadius
-            try {
-                $b = New-Object System.Drawing.SolidBrush $white
-                try { $g.FillPath($b, $cardPath) } finally { $b.Dispose() }
-            }
-            finally { $cardPath.Dispose() }
+        finally { $backPath.Dispose() }
 
-            $barH = [Math]::Max(1.0, $s * 0.09)
-            $barPath = New-RoundedPath -X ($s * 0.25) -Y ($s * 0.66) -W ($s * 0.50) -H $barH -Radius ($barH / 2)
-            try {
-                $b = New-Object System.Drawing.SolidBrush $white
-                try { $g.FillPath($b, $barPath) } finally { $b.Dispose() }
-            }
-            finally { $barPath.Dispose() }
+        # Front card: down and to the left, solid.
+        $frontPath = New-RoundedPath -X $left -Y ($top + $offset) -W $cardW -H $cardH -Radius $cardRadius
+        try {
+            $b = New-Object System.Drawing.SolidBrush $white
+            try { $g.FillPath($b, $frontPath) } finally { $b.Dispose() }
         }
+        finally { $frontPath.Dispose() }
     }
     finally {
         $g.Dispose()
