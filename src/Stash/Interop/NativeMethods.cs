@@ -46,6 +46,19 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    /// <summary>
+    /// Grants another process the right to take the foreground once.
+    /// </summary>
+    /// <remarks>
+    /// Windows only lets the process that currently owns the foreground call
+    /// SetForegroundWindow. A freshly launched second copy of Stash does own it,
+    /// so it hands that right to the already-running copy before asking it to
+    /// open. Without this the panel appears and is immediately dismissed by its
+    /// own deactivation handler, which looks exactly like Stash failing to start.
+    /// </remarks>
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool AllowSetForegroundWindow(uint dwProcessId);
+
     [DllImport("user32.dll")]
     internal static extern bool IsWindow(IntPtr hWnd);
 

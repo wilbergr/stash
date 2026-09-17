@@ -182,12 +182,33 @@ public partial class App : Application
     {
         try
         {
+            // This process was just launched by the user, so it holds the
+            // foreground right. Hand that to the copy already running, or its
+            // panel will appear and instantly dismiss itself.
+            var me = Environment.ProcessId;
+            foreach (var other in System.Diagnostics.Process.GetProcessesByName("Stash"))
+            {
+                using (other)
+                {
+                    if (other.Id != me)
+                    {
+                        NativeMethods.AllowSetForegroundWindow((uint)other.Id);
+                    }
+                }
+            }
+
             if (EventWaitHandle.TryOpenExisting(ShowSignalName, out var handle))
             {
                 using (handle)
                 {
                     handle.Set();
                 }
+
+                AppPaths.Log("Stash was already running; asked the running copy to open and exited.");
+            }
+            else
+            {
+                AppPaths.Log("Stash appears to be running but did not answer; this copy exited without opening.");
             }
         }
         catch (Exception ex)

@@ -29,10 +29,12 @@ namespace Stash.Interop;
 public sealed class KeyboardRecorder : IDisposable
 {
     /// <summary>
-    /// A gap longer than this becomes a recorded pause. Shorter gaps are just
-    /// human typing rhythm and would bloat every macro with noise.
+    /// A gap longer than this becomes a recorded pause, when pauses are being
+    /// recorded at all. Set well above deliberate typing: someone picking out a
+    /// macro carefully leaves a second between keys, and capturing that would
+    /// make the macro replay at the speed it was typed.
     /// </summary>
-    private const int PauseThresholdMs = 400;
+    private const int PauseThresholdMs = 1800;
 
     private const int MaxSteps = 200;
 
@@ -62,8 +64,12 @@ public sealed class KeyboardRecorder : IDisposable
 
     public bool IsRecording => _hook != IntPtr.Zero;
 
-    /// <summary>Whether long gaps become explicit pause steps.</summary>
-    public bool RecordPauses { get; set; } = true;
+    /// <summary>
+    /// Whether long gaps become explicit pause steps. Off by default: a macro
+    /// should replay instantly, not re-enact how fast the user typed it. Pauses
+    /// are for the rarer case of waiting on an application to catch up.
+    /// </summary>
+    public bool RecordPauses { get; set; }
 
     /// <summary>
     /// The chord that ends a recording. It is swallowed rather than recorded, and

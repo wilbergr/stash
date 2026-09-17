@@ -145,7 +145,8 @@
 
             <CheckBox x:Name="PausesCheck"
                       Style="{StaticResource ThemedCheckBox}"
-                      Content="Record pauses"
+                      Content="Record long pauses"
+                      ToolTip="Off by default, so the macro replays instantly instead of at the speed you typed it. Turn on only if you need to wait for an app to catch up."
                       HorizontalAlignment="Right"
                       VerticalAlignment="Center" />
         </Grid>

@@ -172,6 +172,16 @@ public partial class StashWindow : Window
         ApplyLayout(target);
 
         Activate();
+
+        // Show plus Activate is not always enough when the request came from
+        // elsewhere — a relaunch signalling the running copy, or the tray. If we
+        // did not actually get the foreground, the Deactivated handler fires and
+        // the panel vanishes the instant it appears. Force it the documented way.
+        if (NativeMethods.GetForegroundWindow() != Handle)
+        {
+            ForegroundApp.Restore(Handle);
+        }
+
         AnimateIn();
 
         // Focus the search box so the user can type to filter immediately.
