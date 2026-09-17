@@ -96,6 +96,20 @@ public sealed class AppSettings
     /// </summary>
     public string QuickSlotModifiers { get; set; } = "Ctrl+Alt";
 
+    /// <summary>
+    /// Register the global hotkeys defined in macros.json. Macros type their
+    /// contents as real keystrokes instead of pasting.
+    /// </summary>
+    public bool MacrosEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Milliseconds between injected keystrokes while a macro types. Zero sends
+    /// each step in one batch, which is instant and correct almost everywhere.
+    /// Raise it to 5-15 if a target drops characters — remote desktop and
+    /// virtual-app clients are the usual offenders.
+    /// </summary>
+    public int MacroTypingDelayMs { get; set; }
+
     /// <summary>Honour the clipboard flags password managers set to opt out of history. Off is not recommended.</summary>
     public bool RespectSensitiveClipboardFlags { get; set; } = true;
 }

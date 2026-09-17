@@ -68,12 +68,22 @@ internal static class NativeMethods
 
     internal const uint INPUT_KEYBOARD = 1;
     internal const uint KEYEVENTF_KEYUP = 0x0002;
+
+    /// <summary>
+    /// Treats wScan as a UTF-16 code unit and wVk as unused. This is how literal
+    /// text is typed: it delivers the character itself rather than a key position,
+    /// so it is independent of the user's keyboard layout and can produce
+    /// characters that have no virtual-key code at all.
+    /// </summary>
+    internal const uint KEYEVENTF_UNICODE = 0x0004;
     internal const ushort VK_CONTROL = 0x11;
     internal const ushort VK_SHIFT = 0x10;
     internal const ushort VK_MENU = 0x12;
     internal const ushort VK_LWIN = 0x5B;
     internal const ushort VK_RWIN = 0x5C;
     internal const ushort VK_V = 0x56;
+    internal const ushort VK_RETURN = 0x0D;
+    internal const ushort VK_TAB = 0x09;
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct INPUT
@@ -124,6 +134,66 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     internal static extern short GetAsyncKeyState(int vKey);
+
+    // ---- Low-level keyboard hook (macro recording only) ---------------------
+    // Installed only while the user is actively recording a macro and removed
+    // the moment recording stops. See KeyboardRecorder for the reasoning.
+
+    internal const int WH_KEYBOARD_LL = 13;
+    internal const int HC_ACTION = 0;
+    internal const int WM_KEYDOWN = 0x0100;
+    internal const int WM_KEYUP = 0x0101;
+    internal const int WM_SYSKEYDOWN = 0x0104;
+    internal const int WM_SYSKEYUP = 0x0105;
+
+    /// <summary>LLKHF_INJECTED: the event came from SendInput, not a real key.</summary>
+    internal const uint LLKHF_INJECTED = 0x10;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct KBDLLHOOKSTRUCT
+    {
+        public uint vkCode;
+        public uint scanCode;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    internal delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr SetWindowsHookExW(
+        int idHook,
+        LowLevelKeyboardProc lpfn,
+        IntPtr hMod,
+        uint dwThreadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    // ---- Virtual key to character translation -------------------------------
+
+    /// <summary>Do not disturb the keyboard's dead-key state while translating.</summary>
+    internal const uint TOUNICODE_NOCHANGEKEYSTATE = 0x4;
+
+    [DllImport("user32.dll")]
+    internal static extern int ToUnicodeEx(
+        uint wVirtKey,
+        uint wScanCode,
+        byte[] lpKeyState,
+        [Out] System.Text.StringBuilder pwszBuff,
+        int cchBuff,
+        uint wFlags,
+        IntPtr dwhkl);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetKeyboardLayout(uint idThread);
+
+    [DllImport("user32.dll")]
+    internal static extern bool GetKeyboardState(byte[] lpKeyState);
 
     // ---- DWM: rounded corners, backdrop, dark mode --------------------------
 

@@ -27,6 +27,8 @@ public partial class App : Application
     private RegisteredWaitHandle? _showSignalRegistration;
 
     private SettingsStore _settings = null!;
+    private MacroStore _macros = null!;
+    private MacroRunner _macroRunner = null!;
     private HistoryStore _history = null!;
     private ThumbnailCache _thumbnails = null!;
     private MessageWindow _messageWindow = null!;
@@ -38,6 +40,7 @@ public partial class App : Application
     private TrayIcon _tray = null!;
     private SettingsWindow? _settingsWindow;
     private HelpWindow? _helpWindow;
+    private RecorderWindow? _recorderWindow;
 
     /// <summary>
     /// False until OnStartup finishes. Decides whether an unhandled exception is
@@ -76,6 +79,11 @@ public partial class App : Application
         _settings = new SettingsStore();
         _settings.Load();
 
+        _macros = new MacroStore();
+        _macros.Load();
+
+        _macroRunner = new MacroRunner(_settings);
+
         ApplyTheme();
 
         _thumbnails = new ThumbnailCache();
@@ -100,6 +108,7 @@ public partial class App : Application
         _tray.OpenRequested += () => ShowPanel();
         _tray.SettingsRequested += ShowSettings;
         _tray.HelpRequested += ShowHelp;
+        _tray.ReloadMacrosRequested += ReloadMacros;
         _tray.DockRequested += edge => _stashWindow.DockTo(edge);
         _tray.ClearRequested += ClearHistory;
         _tray.QuitRequested += Shutdown;
@@ -192,7 +201,9 @@ public partial class App : Application
     private void ApplyHotkeys()
     {
         var s = _settings.Current;
-        _hotkeys.Apply(s.Hotkey, s.QuickSlotsEnabled, s.QuickSlotModifiers);
+        var macros = s.MacrosEnabled ? _macros.Macros : null;
+
+        _hotkeys.Apply(s.Hotkey, s.QuickSlotsEnabled, s.QuickSlotModifiers, macros);
 
         _stashViewModel.HotkeyHint = _hotkeys.StashChord ?? "no hotkey";
         _tray?.SetHotkeyHint(_hotkeys.StashChord);
@@ -201,6 +212,27 @@ public partial class App : Application
         {
             AppPaths.Log("Hotkey: " + warning);
         }
+
+        foreach (var problem in _macros.Problems)
+        {
+            AppPaths.Log("Macro: " + problem);
+        }
+    }
+
+    /// <summary>Re-reads macros.json and re-registers every hotkey.</summary>
+    private void ReloadMacros()
+    {
+        _macros.Load();
+        ApplyHotkeys();
+
+        var count = _macros.Macros.Count;
+        var problems = _macros.Problems.Count;
+
+        _tray.ShowMessage(
+            "Macros reloaded",
+            problems == 0
+                ? $"{count} macro{(count == 1 ? "" : "s")} ready."
+                : $"{count} loaded, {problems} rejected. See Settings or stash.log.");
     }
 
     private void OnHotkeyPressed(HotkeyPressed pressed)
@@ -212,8 +244,32 @@ public partial class App : Application
                 break;
 
             case HotkeyKind.QuickSlot:
-                _ = PasteQuickSlot(pressed.Slot);
+                _ = PasteQuickSlot(pressed.Index);
                 break;
+
+            case HotkeyKind.Macro:
+                _ = RunMacro(pressed.Index);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Types a macro into the focused app. The panel never appears: the window
+    /// the user is in is already the target.
+    /// </summary>
+    private async Task RunMacro(int index)
+    {
+        if (index < 0 || index >= _macros.Macros.Count)
+        {
+            return;
+        }
+
+        var macro = _macros.Macros[index];
+        var ok = await _macroRunner.RunAsync(macro);
+
+        if (!ok)
+        {
+            AppPaths.Log($"Macro '{macro.Name}' did not complete.");
         }
     }
 
@@ -257,13 +313,23 @@ public partial class App : Application
 
         _stashWindow.HidePanel();
 
-        _settingsWindow = new SettingsWindow(_settings, _history, _thumbnails, _hotkeys.Warnings);
+        // Macro problems belong in the same warning box as hotkey problems: from
+        // the user's point of view both are "a chord I configured is not working".
+        var warnings = _hotkeys.Warnings.Concat(_macros.Problems).ToList();
+
+        _settingsWindow = new SettingsWindow(_settings, _history, _thumbnails, _macros, warnings);
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Saved += () =>
         {
             ApplyTheme();
             ApplyHotkeys();
             _stashViewModel.Rebuild();
+        };
+        _settingsWindow.RecordMacroRequested += ShowRecorder;
+        _settingsWindow.ReloadMacrosRequested += () =>
+        {
+            _macros.Load();
+            ApplyHotkeys();
         };
 
         _settingsWindow.Show();
@@ -286,6 +352,28 @@ public partial class App : Application
 
         _helpWindow.Show();
         _helpWindow.Activate();
+    }
+
+    private void ShowRecorder()
+    {
+        if (_recorderWindow is not null)
+        {
+            _recorderWindow.Activate();
+            return;
+        }
+
+        _stashWindow.HidePanel();
+
+        _recorderWindow = new RecorderWindow(_macros, _settings);
+        _recorderWindow.Closed += (_, _) => _recorderWindow = null;
+        _recorderWindow.Saved += () =>
+        {
+            ApplyHotkeys();
+            _settingsWindow?.ShowMacros();
+        };
+
+        _recorderWindow.Show();
+        _recorderWindow.Activate();
     }
 
     private void ClearHistory(bool includeFavorites)

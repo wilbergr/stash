@@ -103,6 +103,22 @@
 
                 <ItemsControl x:Name="FavoritesList" ItemTemplate="{StaticResource ShortcutRowTemplate}" />
 
+                <!-- ==== Macros =========================================== -->
+                <TextBlock Text="Macros: typing instead of pasting" Style="{StaticResource SettingsHeading}" Margin="0,24,0,10" />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Margin="0,0,0,12"
+                           Text="A macro is a hotkey that types for you. Where a quick slot pastes through the clipboard, a macro presses the keys itself — so it works in fields that refuse pasted text, in remote sessions where the clipboard is not shared, and anywhere you need real keys such as Tab to move between form fields. It also leaves whatever is on your clipboard alone." />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Margin="0,0,0,12"
+                           Text="The easiest way to make one is to record it: Settings, then Record a macro. Press Start, switch to the app you want, and type. Stash watches the keys, collecting letters into text and turning keys like Tab or Enter into steps of their own. Press Ctrl+Alt+Shift+R to stop, give it a name and a hotkey, and save." />
+
+                <ItemsControl x:Name="MacroList" ItemTemplate="{StaticResource ShortcutRowTemplate}" />
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="Recording only listens while you have explicitly started it, and it ignores keystrokes that Stash itself sends. Even so, while it is running it sees everything you type — so do not type a password during a recording. Macros are saved as plain text in macros.json, which you can also edit by hand." />
+
                 <!-- ==== Moving the panel ================================= -->
                 <TextBlock Text="Moving and resizing the panel" Style="{StaticResource SettingsHeading}" Margin="0,24,0,10" />
 
