@@ -60,6 +60,8 @@ public partial class RecorderWindow : Window
 
         RecordButton.Click += (_, _) => Toggle();
         UndoButton.Click += (_, _) => UndoLast();
+        AddPauseButton.Click += (_, _) => AddPause();
+        NoPausesButton.Click += (_, _) => RemovePauses();
         ClearButton.Click += (_, _) => ClearSteps();
         SaveButton.Click += (_, _) => Save();
         CancelButton.Click += (_, _) => Close();
@@ -79,8 +81,56 @@ public partial class RecorderWindow : Window
         UpdateStatus();
     }
 
-    /// <summary>Row shape for the captured-steps list.</summary>
-    private sealed record StepRow(string Kind, string Detail);
+    /// <summary>
+    /// One row of the step list, wrapping the step it displays.
+    /// </summary>
+    /// <remarks>
+    /// Holds a reference to the underlying <see cref="MacroStep"/> rather than a
+    /// copy, so editing a pause in the list edits the step that will be saved. A
+    /// record of plain strings would have needed the values read back out of the
+    /// controls at save time, which is easy to get wrong.
+    /// </remarks>
+    private sealed class StepRow : ViewModels.ObservableObject
+    {
+        /// <summary>Matches MacroRunner's per-step ceiling.</summary>
+        private const int MaxDelayMs = 5000;
+
+        public StepRow(MacroStep step)
+        {
+            Step = step;
+        }
+
+        public MacroStep Step { get; }
+
+        public bool IsDelay => Step.DelayMs is not null;
+
+        public string Kind => IsDelay ? "wait" : !string.IsNullOrEmpty(Step.Text) ? "type" : "press";
+
+        public string Detail => !string.IsNullOrEmpty(Step.Text)
+            ? Quote(Step.Text)
+            : Step.Key ?? "";
+
+        /// <summary>The pause in milliseconds, as edited in the list.</summary>
+        public string DelayText
+        {
+            get => Step.DelayMs?.ToString() ?? "";
+            set
+            {
+                // Ignore anything unparseable rather than fight the user
+                // mid-keystroke; an empty box reads as no wait.
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    Step.DelayMs = 0;
+                }
+                else if (int.TryParse(value.Trim(), out var ms))
+                {
+                    Step.DelayMs = Math.Clamp(ms, 0, MaxDelayMs);
+                }
+
+                Raise();
+            }
+        }
+    }
 
     // ---- Recording ----------------------------------------------------------
 
@@ -182,26 +232,9 @@ public partial class RecorderWindow : Window
 
     private void RefreshSteps()
     {
-        var rows = new List<StepRow>();
-
         // While recording, show the live capture; otherwise the working set.
         var source = _recorder.IsRecording ? _recorder.Steps : _steps;
-
-        foreach (var step in source)
-        {
-            if (!string.IsNullOrEmpty(step.Text))
-            {
-                rows.Add(new StepRow("type", Quote(step.Text)));
-            }
-            else if (!string.IsNullOrWhiteSpace(step.Key))
-            {
-                rows.Add(new StepRow("press", step.Key));
-            }
-            else if (step.DelayMs is { } ms)
-            {
-                rows.Add(new StepRow("wait", $"{ms} ms"));
-            }
-        }
+        var rows = source.Select(s => new StepRow(s)).ToList();
 
         StepList.ItemsSource = rows;
         EmptyHint.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -215,6 +248,77 @@ public partial class RecorderWindow : Window
     {
         var shown = text.Replace("\r", "").Replace("\n", "\\n").Replace("\t", "\\t");
         return $"\u201c{shown}\u201d";
+    }
+
+    /// <summary>Removes one step from the working set.</summary>
+    private void OnRemoveStep(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Primitives.ButtonBase { CommandParameter: StepRow row })
+        {
+            return;
+        }
+
+        if (_recorder.IsRecording)
+        {
+            // Editing a capture as it streams in would fight the recorder.
+            ErrorText.Text = "Stop recording before editing the steps.";
+            return;
+        }
+
+        _steps.Remove(row.Step);
+        RefreshSteps();
+        UpdateStatus();
+    }
+
+    /// <summary>
+    /// Appends a pause, for waiting on an application rather than re-enacting
+    /// how fast the macro was typed.
+    /// </summary>
+    /// <remarks>
+    /// Appends rather than inserting at a chosen point: a per-row insert button
+    /// would crowd the list, and a wait is usually wanted at the end of a step
+    /// that triggers something slow. Precise placement is a file edit away.
+    /// </remarks>
+    private void AddPause()
+    {
+        if (_recorder.IsRecording)
+        {
+            ErrorText.Text = "Stop recording before editing the steps.";
+            return;
+        }
+
+        _steps.Add(new MacroStep { DelayMs = 200 });
+        ErrorText.Text = "Pause added — set its length in the list.";
+
+        RefreshSteps();
+        UpdateStatus();
+        StepScroller.ScrollToEnd();
+    }
+
+    /// <summary>
+    /// Strips every pause, so the macro types at full speed.
+    /// </summary>
+    /// <remarks>
+    /// The case this exists for: recording a long string takes a while to type,
+    /// and the pauses that captures are the user's own hesitation rather than
+    /// anything the target application needs.
+    /// </remarks>
+    private void RemovePauses()
+    {
+        if (_recorder.IsRecording)
+        {
+            ErrorText.Text = "Stop recording before editing the steps.";
+            return;
+        }
+
+        var removed = _steps.RemoveAll(s => s.DelayMs is not null);
+
+        ErrorText.Text = removed == 0
+            ? "There were no pauses to remove."
+            : $"Removed {removed} pause{(removed == 1 ? "" : "s")}.";
+
+        RefreshSteps();
+        UpdateStatus();
     }
 
     // ---- Saving -------------------------------------------------------------
@@ -248,6 +352,10 @@ public partial class RecorderWindow : Window
             ErrorText.Text = $"{chord.Display} is already used by another macro.";
             return;
         }
+
+        // A wait of zero does nothing; clearing the box is how you say "no pause",
+        // so drop those rather than persist clutter.
+        _steps.RemoveAll(s => s.DelayMs is 0 && string.IsNullOrEmpty(s.Text) && string.IsNullOrWhiteSpace(s.Key));
 
         if (_steps.Count == 0)
         {
