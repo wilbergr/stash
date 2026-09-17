@@ -24,6 +24,9 @@ public partial class SettingsWindow : Window
     /// <summary>Raised when the user asks to record a macro.</summary>
     public event Action? RecordMacroRequested;
 
+    /// <summary>Raised with a copy of the macro the user wants to edit.</summary>
+    public event Action<Models.Macro>? EditMacroRequested;
+
     /// <summary>Raised when macros should be re-read and re-registered.</summary>
     public event Action? ReloadMacrosRequested;
 
@@ -58,31 +61,141 @@ public partial class SettingsWindow : Window
         Load(hotkeyWarnings);
     }
 
-    /// <summary>Re-reads the macro list into the UI, after a record or reload.</summary>
+    /// <summary>Row shape for the macro list.</summary>
+    private sealed record MacroRow(
+        string Id,
+        string Name,
+        string Chord,
+        string Summary,
+        bool Enabled,
+        string? Problem,
+        bool HasProblem,
+        double DimWhenOff);
+
+    /// <summary>
+    /// Re-reads the macro list into the UI, after a record, edit or reload.
+    /// </summary>
+    /// <remarks>
+    /// Lists every entry in the file, not just the active ones, so a disabled or
+    /// broken macro can still be re-enabled, edited or deleted from here.
+    /// </remarks>
     public void ShowMacros()
     {
-        var rows = _macros.Macros
-            .Select(m => new
+        // Suppress the checkbox handlers while the list is rebuilt, or assigning
+        // ItemsSource fires Checked/Unchecked and writes the file back.
+        _populating = true;
+
+        try
+        {
+            var rows = _macros.All
+                .Select(e => new MacroRow(
+                    e.Macro.Id,
+                    e.Macro.Name,
+                    e.Macro.Hotkey,
+                    Summarise(e.Macro),
+                    e.Macro.Enabled,
+                    // "Disabled" is self-evident from the unticked box.
+                    e.Problem == "Disabled" ? null : e.Problem,
+                    e.Problem is not null && e.Problem != "Disabled",
+                    e.Active ? 1.0 : 0.45))
+                .ToList();
+
+            MacroList.ItemsSource = rows;
+
+            var active = rows.Count(r => r.Enabled && !r.HasProblem);
+
+            MacroCountText.Text = rows.Count switch
             {
-                m.Name,
-                Chord = m.Hotkey,
-                Summary = Summarise(m),
-            })
-            .ToList();
-
-        MacroList.ItemsSource = rows;
-
-        MacroCountText.Text = rows.Count switch
-        {
-            0 => "No macros defined",
-            1 => "1 macro",
-            _ => $"{rows.Count} macros",
-        };
-
-        if (_macros.Problems.Count > 0)
-        {
-            MacroCountText.Text += $" · {_macros.Problems.Count} rejected";
+                0 => "No macros defined",
+                1 => active == 1 ? "1 macro" : "1 macro, inactive",
+                _ => $"{rows.Count} macros, {active} active",
+            };
         }
+        finally
+        {
+            _populating = false;
+        }
+    }
+
+    private bool _populating;
+
+    private static string? IdOf(object sender)
+        => sender is FrameworkElement { } element
+            ? (element as System.Windows.Controls.Primitives.ButtonBase)?.CommandParameter as string ?? element.Tag as string
+            : null;
+
+    private void OnMacroEnabledChanged(object sender, RoutedEventArgs e)
+    {
+        if (_populating || sender is not System.Windows.Controls.CheckBox box || box.Tag is not string id)
+        {
+            return;
+        }
+
+        if (!_macros.SetEnabled(id, box.IsChecked == true, out var error))
+        {
+            StatusText.Text = error ?? "That macro could not be changed.";
+
+            // Put the tick back where it was, since the change did not take.
+            ShowMacros();
+            return;
+        }
+
+        StatusText.Text = box.IsChecked == true ? "Macro enabled." : "Macro disabled.";
+        ReloadMacrosRequested?.Invoke();
+        ShowMacros();
+    }
+
+    private void OnEditMacro(object sender, RoutedEventArgs e)
+    {
+        if (IdOf(sender) is not { } id)
+        {
+            return;
+        }
+
+        var macro = _macros.All.FirstOrDefault(m => m.Macro.Id == id)?.Macro;
+        if (macro is null)
+        {
+            return;
+        }
+
+        EditMacroRequested?.Invoke(macro.Clone());
+    }
+
+    private void OnDeleteMacro(object sender, RoutedEventArgs e)
+    {
+        if (IdOf(sender) is not { } id)
+        {
+            return;
+        }
+
+        var macro = _macros.All.FirstOrDefault(m => m.Macro.Id == id)?.Macro;
+        if (macro is null)
+        {
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            this,
+            $"Delete the macro '{macro.Name}' on {macro.Hotkey}?\n\nThis cannot be undone.",
+            "Delete macro",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        if (!_macros.Delete(id, out var error))
+        {
+            StatusText.Text = error ?? "That macro could not be deleted.";
+            return;
+        }
+
+        StatusText.Text = $"Deleted '{macro.Name}'.";
+        ReloadMacrosRequested?.Invoke();
+        ShowMacros();
     }
 
     /// <summary>A one-line description of what a macro does.</summary>

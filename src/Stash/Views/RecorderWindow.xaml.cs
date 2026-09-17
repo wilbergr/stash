@@ -21,23 +21,46 @@ public partial class RecorderWindow : Window
     private readonly SettingsStore _settings;
     private readonly KeyboardRecorder _recorder = new();
 
+    /// <summary>The macro being edited, or null when creating a new one.</summary>
+    private readonly Macro? _editing;
+
+    /// <summary>
+    /// The steps that will be saved. Seeded from the macro under edit, and
+    /// replaced only when a recording actually captures something — so opening an
+    /// existing macro just to change its hotkey does not wipe its steps.
+    /// </summary>
+    private List<MacroStep> _steps = new();
+
     /// <summary>Raised after a macro is saved, so hotkeys can be re-registered.</summary>
     public event Action? Saved;
 
-    public RecorderWindow(MacroStore macros, SettingsStore settings)
+    public RecorderWindow(MacroStore macros, SettingsStore settings, Macro? editing = null)
     {
         _macros = macros;
         _settings = settings;
+        _editing = editing;
 
         InitializeComponent();
 
-        NameBox.Text = "My macro";
-        HotkeyBox.Text = SuggestChord();
+        if (_editing is not null)
+        {
+            Title = $"Edit macro — {_editing.Name}";
+            NameBox.Text = _editing.Name;
+            HotkeyBox.Text = _editing.Hotkey;
+            _steps = _editing.Steps.Select(s => new MacroStep { Text = s.Text, Key = s.Key, DelayMs = s.DelayMs }).ToList();
+            SaveButton.Content = "Save changes";
+        }
+        else
+        {
+            NameBox.Text = "My macro";
+            HotkeyBox.Text = SuggestChord();
+        }
+
         PausesCheck.IsChecked = _recorder.RecordPauses;
 
         RecordButton.Click += (_, _) => Toggle();
-        UndoButton.Click += (_, _) => _recorder.RemoveLast();
-        ClearButton.Click += (_, _) => _recorder.Clear();
+        UndoButton.Click += (_, _) => UndoLast();
+        ClearButton.Click += (_, _) => ClearSteps();
         SaveButton.Click += (_, _) => Save();
         CancelButton.Click += (_, _) => Close();
 
@@ -90,12 +113,48 @@ public partial class RecorderWindow : Window
     private void StopRecording()
     {
         _recorder.Stop();
+
+        // Adopt the capture only if it caught something. Starting and stopping
+        // without typing should not silently empty an existing macro.
+        var captured = _recorder.Build();
+        if (captured.Count > 0)
+        {
+            _steps = captured;
+        }
+
+        _recorder.Clear();
+        RefreshSteps();
         UpdateStatus();
         Activate();
     }
 
+    private void UndoLast()
+    {
+        if (_recorder.IsRecording)
+        {
+            _recorder.RemoveLast();
+            return;
+        }
+
+        if (_steps.Count > 0)
+        {
+            _steps.RemoveAt(_steps.Count - 1);
+            RefreshSteps();
+        }
+    }
+
+    private void ClearSteps()
+    {
+        _recorder.Clear();
+        _steps.Clear();
+        RefreshSteps();
+        UpdateStatus();
+    }
+
     private void UpdateStatus()
     {
+        var hasSteps = _steps.Count > 0;
+
         if (_recorder.IsRecording)
         {
             RecordDot.Fill = new SolidColorBrush(Color.FromRgb(0xE8, 0x11, 0x23));
@@ -108,11 +167,16 @@ public partial class RecorderWindow : Window
         else
         {
             RecordDot.Fill = (Brush)FindResource("Brush.TextTertiary");
-            StatusText.Text = _recorder.Steps.Count > 0 ? "Stopped" : "Not recording";
-            StatusHint.Text =
-                "Press Start, then switch to the app you want to type into. Stash captures the keys you press, " +
-                "turning letters into text and keys like Tab or Enter into their own steps. Nothing is saved until you click Save macro.";
-            RecordButton.Content = _recorder.Steps.Count > 0 ? "Record again" : "Start recording";
+
+            StatusText.Text = _editing is not null
+                ? (hasSteps ? $"{_steps.Count} step(s)" : "No steps")
+                : (hasSteps ? "Stopped" : "Not recording");
+
+            StatusHint.Text = _editing is not null
+                ? "Change the name or hotkey and save. To replace what it types, press Record again and type the new version — the existing steps are kept unless a new recording captures something."
+                : "Press Start, then switch to the app you want to type into. Stash captures the keys you press, turning letters into text and keys like Tab or Enter into their own steps. Nothing is saved until you click Save macro.";
+
+            RecordButton.Content = hasSteps ? "Record again" : "Start recording";
         }
     }
 
@@ -120,7 +184,10 @@ public partial class RecorderWindow : Window
     {
         var rows = new List<StepRow>();
 
-        foreach (var step in _recorder.Steps)
+        // While recording, show the live capture; otherwise the working set.
+        var source = _recorder.IsRecording ? _recorder.Steps : _steps;
+
+        foreach (var step in source)
         {
             if (!string.IsNullOrEmpty(step.Text))
             {
@@ -175,28 +242,45 @@ public partial class RecorderWindow : Window
             return;
         }
 
-        if (_macros.IsChordTaken(chord.Display))
+        // Editing a macro must not collide with its own chord.
+        if (_macros.IsChordTaken(chord.Display, _editing?.Id))
         {
             ErrorText.Text = $"{chord.Display} is already used by another macro.";
             return;
         }
 
-        var steps = _recorder.Build();
-        if (steps.Count == 0)
+        if (_steps.Count == 0)
         {
-            ErrorText.Text = "Nothing was captured, so there is nothing to save.";
+            ErrorText.Text = _editing is not null
+                ? "This macro has no steps left. Record something, or delete it from Settings."
+                : "Nothing was captured, so there is nothing to save.";
             return;
         }
 
-        var macro = new Macro
-        {
-            Name = name,
-            Hotkey = chord.Display,
-            Enabled = true,
-            Steps = steps,
-        };
+        bool saved;
+        string? error;
 
-        if (!_macros.Append(macro, out var error))
+        if (_editing is not null)
+        {
+            _editing.Name = name;
+            _editing.Hotkey = chord.Display;
+            _editing.Steps = _steps;
+            saved = _macros.Update(_editing, out error);
+        }
+        else
+        {
+            saved = _macros.Append(
+                new Macro
+                {
+                    Name = name,
+                    Hotkey = chord.Display,
+                    Enabled = true,
+                    Steps = _steps,
+                },
+                out error);
+        }
+
+        if (!saved)
         {
             ErrorText.Text = error ?? "The macro could not be saved.";
             return;

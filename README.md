@@ -143,6 +143,16 @@ want, and type. Stash collects letters into text runs and turns keys like `Tab`,
 `Enter` and `Backspace` into steps of their own. `Ctrl+Alt+Shift+R` stops the
 recording; then name it, give it a hotkey, and save.
 
+**Manage them:** Settings lists every macro in the file — including disabled and
+broken ones, so they can be fixed rather than just ignored. Each row has a tick
+to enable or disable it, a pencil to edit the name, hotkey or steps, and a bin to
+delete it. Changes take effect immediately; no restart, no reload.
+
+Editing opens the same recorder. Change the name or hotkey and save, and the
+steps are left alone; press *Record again* to replace what it types. An existing
+macro is never emptied by starting and stopping a recording that captured
+nothing.
+
 **Or write one:** macros live in `%LOCALAPPDATA%\Stash\macros.json`, which Stash
 seeds with worked examples on first run. Each step is text to type, a key to
 press, or a pause:

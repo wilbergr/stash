@@ -346,7 +346,8 @@ public partial class App : Application
             ApplyHotkeys();
             _stashViewModel.Rebuild();
         };
-        _settingsWindow.RecordMacroRequested += ShowRecorder;
+        _settingsWindow.RecordMacroRequested += () => ShowRecorder(null);
+        _settingsWindow.EditMacroRequested += ShowRecorder;
         _settingsWindow.ReloadMacrosRequested += () =>
         {
             _macros.Load();
@@ -375,7 +376,10 @@ public partial class App : Application
         _helpWindow.Activate();
     }
 
-    private void ShowRecorder()
+    /// <summary>
+    /// Opens the recorder, either blank or editing <paramref name="editing"/>.
+    /// </summary>
+    private void ShowRecorder(Models.Macro? editing)
     {
         if (_recorderWindow is not null)
         {
@@ -385,7 +389,7 @@ public partial class App : Application
 
         _stashWindow.HidePanel();
 
-        _recorderWindow = new RecorderWindow(_macros, _settings);
+        _recorderWindow = new RecorderWindow(_macros, _settings, editing);
         _recorderWindow.Closed += (_, _) => _recorderWindow = null;
         _recorderWindow.Saved += () =>
         {
