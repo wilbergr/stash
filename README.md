@@ -40,7 +40,18 @@ privacy controls:
 
 ## Install
 
-Download or build `Stash-1.0.0.msi` and double-click it.
+Download the latest installer from
+[Releases](https://github.com/wilbergr/stash/releases/latest) and double-click it:
+
+- **`Stash-<version>-setup.msi`** runs on any Windows PC. It bundles .NET, so it
+  is about 55 MB.
+- **`Stash-<version>-framework-dependent.msi`** is about 1 MB, but needs the
+  [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
+  already installed.
+
+The installers are not code-signed, so SmartScreen may say it "protected your
+PC". Choose **More info**, then **Run anyway**. Installing a newer version
+upgrades the old one in place and keeps your clips.
 
 It is a **per-user install**: it goes into `%LOCALAPPDATA%\Programs\Stash`, needs
 no administrator rights, never prompts for UAC, and makes no machine-wide
@@ -51,8 +62,8 @@ on a managed desktop a per-machine installer is often the difference between
 Silently, if you prefer:
 
 ```powershell
-msiexec /i Stash-1.0.0.msi /qn      # install
-msiexec /x Stash-1.0.0.msi /qn      # uninstall
+msiexec /i Stash-1.6.0-setup.msi /qn      # install
+msiexec /x Stash-1.6.0-setup.msi /qn      # uninstall
 ```
 
 Then press `Ctrl+Alt+V`. Stash also appears in Start and under Settings →
@@ -65,8 +76,8 @@ silently destroying it would be the wrong default. To remove that too, delete
 ### Requirements
 
 - Windows 10 2004 or later (built and tested on Windows 11)
-- [.NET 10 desktop runtime](https://dotnet.microsoft.com/download/dotnet/10.0) —
-  the shipped exe is framework-dependent so it stays under a megabyte
+- For the framework-dependent installer only: the
+  [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ## Build
 
@@ -98,6 +109,18 @@ wix extension add --global WixToolset.Util.wixext/5.0.2
 > Source Maintenance Fee licence, which is a paid commercial agreement. Version 5
 > is the last freely licensed release. Don't casually bump this — it's a
 > procurement decision, not a version bump.
+
+### Releasing
+
+`.github/workflows/release.yml` builds both installers on a GitHub Windows
+runner and publishes them as a release. To ship a version:
+
+1. Set `<Version>` in `src/Stash/Stash.csproj` and merge to `main`.
+2. Tag that commit and push the tag: `git tag v1.6.0` then `git push origin v1.6.0`.
+
+The workflow refuses a tag that does not match `<Version>`. To try a build
+without publishing, run the workflow by hand from the Actions tab; the
+installers are attached to that run as an artifact.
 
 ## Keyboard
 

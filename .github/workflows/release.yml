@@ -1,0 +1,116 @@
+# Builds the Stash installers and publishes them as a GitHub Release.
+#
+#   Push a tag like v1.6.0  -> builds, then creates the v1.6.0 release with the
+#                              installers attached.
+#   Run it by hand          -> builds only; the installers are attached to the
+#                              workflow run as a downloadable artifact. Use this
+#                              to try a build before releasing it.
+#
+# The tag must match <Version> in src/Stash/Stash.csproj. Windows Installer
+# upgrades by version, so publishing two different builds as the same version
+# leaves people unable to tell which one they have.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # create the release and upload its assets
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Pinned to WiX 5: versions 6 and later require accepting the Open Source
+      # Maintenance Fee licence. See build.ps1.
+      - name: Install WiX 5
+        shell: powershell
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          if ($LASTEXITCODE -ne 0) { throw "WiX install failed." }
+
+          # Full path: the global tools folder is not on PATH until the next step.
+          $wix = Join-Path $env:USERPROFILE '.dotnet\tools\wix.exe'
+          & $wix extension add --global WixToolset.UI.wixext/5.0.2
+          & $wix extension add --global WixToolset.Util.wixext/5.0.2
+          if ($LASTEXITCODE -ne 0) { throw "WiX extensions could not be added." }
+
+      - name: Read the version
+        id: version
+        shell: powershell
+        run: |
+          $csproj = [xml](Get-Content src\Stash\Stash.csproj)
+          $version = ($csproj.Project.PropertyGroup.Version | Where-Object { $_ }) -as [string]
+          if (-not $version) { throw "No <Version> in Stash.csproj." }
+
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME does not match the project version $version. Tag v$version, or update <Version> first."
+          }
+
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      # Two installers. build.ps1 empties dist\ on every run, so each one is
+      # moved out before the next build.
+      #   Stash-<v>-setup.msi                  bundles .NET; runs on any Windows PC
+      #   Stash-<v>-framework-dependent.msi    small; needs the .NET 10 Desktop Runtime
+      - name: Build installers
+        shell: powershell
+        run: |
+          $v = '${{ steps.version.outputs.value }}'
+          New-Item -ItemType Directory release | Out-Null
+
+          .\build.ps1 -Installer -SelfContained -Manufacturer '${{ github.repository_owner }}'
+          Move-Item "dist\Stash-$v.msi" "release\Stash-$v-setup.msi"
+
+          .\build.ps1 -Installer -Manufacturer '${{ github.repository_owner }}'
+          Move-Item "dist\Stash-$v.msi" "release\Stash-$v-framework-dependent.msi"
+
+          Get-FileHash release\*.msi -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
+            Set-Content release\SHA256SUMS.txt -Encoding ascii
+
+          Get-ChildItem release | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Stash-${{ steps.version.outputs.value }}
+          path: release/*
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.version.outputs.value }}'
+          $notes = @"
+          ## Install
+
+          Download **Stash-$v-setup.msi** and double-click it. It installs for your
+          Windows account only and does not need administrator rights. Installing a
+          newer version upgrades the old one in place and keeps your clips.
+
+          If you already have the .NET 10 Desktop Runtime, the much smaller
+          **Stash-$v-framework-dependent.msi** does the same job.
+
+          The installer is not code-signed, so Windows SmartScreen may say it
+          "protected your PC". Choose **More info**, then **Run anyway**.
+          SHA256SUMS.txt lists the checksums of both files.
+          "@
+
+          # A file, not --notes: Windows PowerShell does not escape the embedded
+          # quotes when passing an argument to a native program.
+          Set-Content release-notes.md $notes -Encoding utf8
+          $assets = Get-ChildItem release | ForEach-Object { $_.FullName }
+          gh release create $env:GITHUB_REF_NAME @assets --title "Stash $v" --notes-file release-notes.md --generate-notes
