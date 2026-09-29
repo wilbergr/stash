@@ -62,6 +62,68 @@ public sealed class MacroStore
     public IReadOnlyList<string> Problems => _problems;
 
     /// <summary>
+    /// Chords Stash itself already uses — the open-the-panel chord and the
+    /// quick-slot chords — mapped to what uses them.
+    /// </summary>
+    /// <remarks>
+    /// Validation used to check a macro's chord only against other macros. Quick
+    /// slots register first, so a macro on Ctrl+Alt+2 silently lost to quick slot
+    /// 2 and never ran, while Settings still showed it as active. Treating these
+    /// as reserved turns that into a visible, explained rejection at load and at
+    /// save instead. Set before <see cref="Load"/>.
+    /// </remarks>
+    public IReadOnlyDictionary<string, string> Reserved { get; set; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>What already owns <paramref name="chord"/> inside Stash, or null if nothing.</summary>
+    public string? ReservedBy(string chord)
+    {
+        if (!HotkeyChord.TryParse(chord, out var parsed))
+        {
+            return null;
+        }
+
+        return Reserved.TryGetValue(parsed.Display, out var owner) ? owner : null;
+    }
+
+    /// <summary>
+    /// Marks macros whose hotkey Windows refused — another application owns the
+    /// chord — so Settings shows them as not running, with the reason, rather
+    /// than as active.
+    /// </summary>
+    /// <param name="registered">Positions in <see cref="Macros"/> that did register.</param>
+    public void MarkUnregistered(IReadOnlyCollection<int> registered)
+    {
+        var failed = new HashSet<string>();
+
+        for (var i = 0; i < _macros.Count; i++)
+        {
+            if (!registered.Contains(i))
+            {
+                failed.Add(_macros[i].Id);
+            }
+        }
+
+        if (failed.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < _all.Count; i++)
+        {
+            var entry = _all[i];
+            if (entry.Active && failed.Contains(entry.Macro.Id))
+            {
+                _all[i] = entry with
+                {
+                    Active = false,
+                    Problem = $"{entry.Macro.Hotkey} is already taken by another application, so this macro does not run. Pick a different hotkey.",
+                };
+            }
+        }
+    }
+
+    /// <summary>
     /// Reads the file, creating it with worked examples the first time.
     /// </summary>
     public void Load()
@@ -128,7 +190,7 @@ public sealed class MacroStore
             macro.Name = string.IsNullOrWhiteSpace(macro.Name) ? "(unnamed)" : macro.Name.Trim();
             macro.Steps.RemoveAll(s => s is null || s.IsEmpty);
 
-            var problem = Validate(macro, seenChords);
+            var problem = Validate(macro, seenChords, Reserved);
 
             if (problem is null && macro.Enabled)
             {
@@ -149,7 +211,10 @@ public sealed class MacroStore
     }
 
     /// <summary>Returns why a macro is unusable, or null if it is fine.</summary>
-    private static string? Validate(Macro macro, Dictionary<string, string> seenChords)
+    private static string? Validate(
+        Macro macro,
+        Dictionary<string, string> seenChords,
+        IReadOnlyDictionary<string, string> reserved)
     {
         if (!HotkeyChord.TryParse(macro.Hotkey, out var chord))
         {
@@ -158,6 +223,11 @@ public sealed class MacroStore
 
         // Normalise so the display and the duplicate check agree.
         macro.Hotkey = chord.Display;
+
+        if (macro.Enabled && reserved.TryGetValue(chord.Display, out var reservedFor))
+        {
+            return $"{chord.Display} is Stash's hotkey for {reservedFor}, so this macro does not run. Pick a different hotkey, or change the quick-slot prefix in Settings.";
+        }
 
         if (macro.Enabled && seenChords.TryGetValue(chord.Display, out var owner))
         {
@@ -266,6 +336,46 @@ public sealed class MacroStore
 
             macro.Enabled = enabled;
             return null;
+        }, out error);
+    }
+
+    /// <summary>
+    /// Changes the hotkey and enabled state of several macros in one write.
+    /// </summary>
+    /// <remarks>
+    /// Done as a batch, and checked only once every change is applied, so that
+    /// swapping two macros' chords works. Applied one at a time, the first half of
+    /// a swap would collide with the second macro and be refused.
+    /// </remarks>
+    public bool SetHotkeys(IReadOnlyDictionary<string, (string Hotkey, bool Enabled)> changes, out string? error)
+    {
+        return Mutate(list =>
+        {
+            foreach (var (id, change) in changes)
+            {
+                var macro = list.FirstOrDefault(m => m.Id == id);
+                if (macro is null)
+                {
+                    return "One of those macros is no longer in the file; it may have been edited elsewhere.";
+                }
+
+                if (!HotkeyChord.TryParse(change.Hotkey, out var chord))
+                {
+                    return $"'{change.Hotkey}' is not a usable hotkey for '{macro.Name}'.";
+                }
+
+                macro.Hotkey = chord.Display;
+                macro.Enabled = change.Enabled;
+            }
+
+            var clash = list
+                .Where(m => m.Enabled)
+                .GroupBy(m => m.Hotkey, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(g => g.Count() > 1);
+
+            return clash is null
+                ? null
+                : $"{clash.Key} would be used by more than one macro: {string.Join(", ", clash.Select(m => $"'{m.Name}'"))}.";
         }, out error);
     }
 

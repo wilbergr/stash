@@ -88,6 +88,14 @@
                 <TextBlock Style="{StaticResource SettingsCaption}"
                            Text="Combined with the digits 1-9. With the default Ctrl+Alt, pressing Ctrl+Alt+3 pastes whatever is in quick slot 3 without opening the stash. Assign slots with Alt+1-9 on a card." />
 
+                <Button x:Name="AllHotkeysButton"
+                        Style="{StaticResource SecondaryButton}"
+                        Content="See and change all hotkeys…"
+                        HorizontalAlignment="Left"
+                        Margin="0,14,0,0" />
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="Every hotkey in one list, including macros and the panel shortcuts, checked against each other as you change them." />
+
                 <Border Height="1" Background="{DynamicResource Brush.Divider}" Margin="0,22,0,20" />
 
                 <!-- ==== Macros ============================================= -->
@@ -347,6 +355,11 @@
                            Text="Stash keeps everything on this machine and never sends anything over the network. History is stored as plain files in your local profile and is not encrypted at rest, so treat it as readable by anything that can already read your user folder." />
 
                 <WrapPanel Margin="0,16,0,0">
+                    <Button x:Name="CleanupButton"
+                            Style="{StaticResource PrimaryButton}"
+                            Content="Clean up…"
+                            ToolTip="Remove clips by age, kind, or whether you have ever pasted them"
+                            Margin="0,0,8,8" />
                     <Button x:Name="OpenFolderButton"
                             Style="{StaticResource SecondaryButton}"
                             Content="Open data folder"

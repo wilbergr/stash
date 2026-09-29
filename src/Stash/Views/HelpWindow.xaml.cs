@@ -22,6 +22,9 @@ public partial class HelpWindow : Window
     /// <summary>Raised when the user asks for Settings from the footer.</summary>
     public event Action? SettingsRequested;
 
+    /// <summary>Raised when the user asks for the all-hotkeys window.</summary>
+    public event Action? HotkeysRequested;
+
     /// <summary>The chord that actually opens Stash, shown in the summary box.</summary>
     public string OpenChord { get; }
 
@@ -34,6 +37,11 @@ public partial class HelpWindow : Window
         DataContext = this;
 
         CloseButton.Click += (_, _) => Close();
+        HotkeysButton.Click += (_, _) =>
+        {
+            HotkeysRequested?.Invoke();
+            Close();
+        };
         SettingsButton.Click += (_, _) =>
         {
             SettingsRequested?.Invoke();

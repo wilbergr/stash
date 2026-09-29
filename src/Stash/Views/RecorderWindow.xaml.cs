@@ -52,7 +52,7 @@ public partial class RecorderWindow : Window
         }
         else
         {
-            NameBox.Text = "My macro";
+            NameBox.Text = SuggestName();
             HotkeyBox.Text = SuggestChord();
         }
 
@@ -346,6 +346,20 @@ public partial class RecorderWindow : Window
             return;
         }
 
+        // Stash's own chords first: a macro on one of these would register last,
+        // lose, and never run.
+        if (_macros.ReservedBy(chord.Display) is { } owner)
+        {
+            var alternative = chord.Display.Contains("Shift", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : WithShift(chord.Display);
+
+            ErrorText.Text = alternative is null
+                ? $"{chord.Display} is Stash's hotkey for {owner}. Pick a different one."
+                : $"{chord.Display} is Stash's hotkey for {owner}. Try {alternative} instead.";
+            return;
+        }
+
         // Editing a macro must not collide with its own chord.
         if (_macros.IsChordTaken(chord.Display, _editing?.Id))
         {
@@ -411,13 +425,45 @@ public partial class RecorderWindow : Window
         foreach (var letter in "HGJKLMNPQRTUWYZ")
         {
             var candidate = $"{prefix}+{letter}";
-            if (HotkeyChord.TryParse(candidate, out var chord) && !_macros.IsChordTaken(chord.Display))
+            if (HotkeyChord.TryParse(candidate, out var chord)
+                && !_macros.IsChordTaken(chord.Display)
+                && _macros.ReservedBy(chord.Display) is null)
             {
                 return chord.Display;
             }
         }
 
         return $"{prefix}+H";
+    }
+
+    /// <summary>"Ctrl+Alt+2" becomes "Ctrl+Alt+Shift+2": the nearest free chord to suggest.</summary>
+    private static string WithShift(string display)
+    {
+        var parts = display.Split('+').ToList();
+        parts.Insert(parts.Count - 1, "Shift");
+        return string.Join("+", parts);
+    }
+
+    /// <summary>
+    /// A default name that differs from the existing ones. Every macro used to
+    /// start as "My macro", so three of them were indistinguishable in Settings.
+    /// </summary>
+    private string SuggestName()
+    {
+        var names = new HashSet<string>(
+            _macros.All.Select(e => e.Macro.Name),
+            StringComparer.OrdinalIgnoreCase);
+
+        for (var n = 1; n < 1000; n++)
+        {
+            var candidate = $"Macro {n}";
+            if (!names.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return "Macro";
     }
 
     protected override void OnSourceInitialized(EventArgs e)
