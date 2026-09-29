@@ -42,6 +42,7 @@ public partial class App : Application
     private HelpWindow? _helpWindow;
     private RecorderWindow? _recorderWindow;
     private CleanupWindow? _cleanupWindow;
+    private HotkeysWindow? _hotkeysWindow;
 
     /// <summary>
     /// False until OnStartup finishes. Decides whether an unhandled exception is
@@ -109,6 +110,7 @@ public partial class App : Application
         _tray.OpenRequested += () => ShowPanel();
         _tray.SettingsRequested += ShowSettings;
         _tray.HelpRequested += ShowHelp;
+        _tray.HotkeysRequested += ShowHotkeys;
         _tray.ReloadMacrosRequested += ReloadMacros;
         _tray.CleanupRequested += ShowCleanup;
         _tray.DockRequested += edge => _stashWindow.DockTo(edge);
@@ -224,9 +226,24 @@ public partial class App : Application
     private void ApplyHotkeys()
     {
         var s = _settings.Current;
+
+        // Stash's own chords win. Revalidating against them turns a macro that
+        // would silently lose at registration into one rejected with a reason
+        // that Settings can show against the row.
+        _macros.Reserved = ReservedChords(s);
+        _macros.Load();
+
         var macros = s.MacrosEnabled ? _macros.Macros : null;
 
         _hotkeys.Apply(s.Hotkey, s.QuickSlotsEnabled, s.QuickSlotModifiers, macros);
+
+        if (macros is not null)
+        {
+            // Anything still refused was taken by another application.
+            _macros.MarkUnregistered(_hotkeys.MacroChords.Keys.ToList());
+        }
+
+        _settingsWindow?.ShowMacros();
 
         _stashViewModel.HotkeyHint = _hotkeys.StashChord ?? "no hotkey";
         _tray?.SetHotkeyHint(_hotkeys.StashChord);
@@ -242,11 +259,41 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// The chords Stash registers for itself, mapped to what they do, so macros
+    /// can be kept off them.
+    /// </summary>
+    private static Dictionary<string, string> ReservedChords(AppSettings s)
+    {
+        var reserved = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (HotkeyChord.TryParse(s.Hotkey, out var open))
+        {
+            reserved[open.Display] = "opening the panel";
+        }
+
+        if (s.QuickSlotsEnabled)
+        {
+            var prefix = string.IsNullOrWhiteSpace(s.QuickSlotModifiers) ? "Ctrl+Alt" : s.QuickSlotModifiers;
+
+            for (var slot = 1; slot <= 9; slot++)
+            {
+                if (HotkeyChord.TryParse($"{prefix}+{slot}", out var chord))
+                {
+                    reserved[chord.Display] = $"quick slot {slot}";
+                }
+            }
+        }
+
+        return reserved;
+    }
+
     /// <summary>Re-reads macros.json and re-registers every hotkey.</summary>
     private void ReloadMacros()
     {
         _macros.Load();
         ApplyHotkeys();
+        _hotkeysWindow?.Reload();
 
         var count = _macros.Macros.Count;
         var problems = _macros.Problems.Count;
@@ -347,14 +394,17 @@ public partial class App : Application
             ApplyTheme();
             ApplyHotkeys();
             _stashViewModel.Rebuild();
+            _hotkeysWindow?.Reload();
         };
         _settingsWindow.CleanupRequested += ShowCleanup;
+        _settingsWindow.HotkeysRequested += ShowHotkeys;
         _settingsWindow.RecordMacroRequested += () => ShowRecorder(null);
         _settingsWindow.EditMacroRequested += ShowRecorder;
         _settingsWindow.ReloadMacrosRequested += () =>
         {
             _macros.Load();
             ApplyHotkeys();
+            _hotkeysWindow?.Reload();
         };
 
         _settingsWindow.Show();
@@ -374,6 +424,7 @@ public partial class App : Application
         _helpWindow = new HelpWindow(_settings, _hotkeys.StashChord);
         _helpWindow.Closed += (_, _) => _helpWindow = null;
         _helpWindow.SettingsRequested += ShowSettings;
+        _helpWindow.HotkeysRequested += ShowHotkeys;
 
         _helpWindow.Show();
         _helpWindow.Activate();
@@ -398,10 +449,55 @@ public partial class App : Application
         {
             ApplyHotkeys();
             _settingsWindow?.ShowMacros();
+            _hotkeysWindow?.Reload();
         };
 
         _recorderWindow.Show();
         _recorderWindow.Activate();
+    }
+
+    /// <summary>Opens the window listing every hotkey, with the configurable ones editable.</summary>
+    private void ShowHotkeys()
+    {
+        if (_hotkeysWindow is not null)
+        {
+            _hotkeysWindow.Activate();
+            return;
+        }
+
+        _stashWindow.HidePanel();
+
+        _hotkeysWindow = new HotkeysWindow(_settings, _hotkeys, _macros, _history);
+        _hotkeysWindow.Saved += () =>
+        {
+            ApplyHotkeys();
+            _settingsWindow?.ShowHotkeys();
+        };
+
+        // Windows swallows a registered chord before any window sees it, so the
+        // hotkeys are released while a capture box is listening.
+        _hotkeysWindow.CaptureStarted += () => _hotkeys.Suspend();
+        _hotkeysWindow.CaptureEnded += () =>
+        {
+            if (_hotkeys.IsSuspended)
+            {
+                ApplyHotkeys();
+            }
+        };
+        _hotkeysWindow.MacroSettingsRequested += ShowSettings;
+        _hotkeysWindow.Closed += (_, _) =>
+        {
+            _hotkeysWindow = null;
+
+            // Belt and braces: never leave Stash without its hotkeys.
+            if (_hotkeys.IsSuspended)
+            {
+                ApplyHotkeys();
+            }
+        };
+
+        _hotkeysWindow.Show();
+        _hotkeysWindow.Activate();
     }
 
     private void ShowCleanup()

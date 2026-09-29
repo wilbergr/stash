@@ -169,7 +169,7 @@ public sealed class HotkeyService : IDisposable
         if (taken.Count > 0)
         {
             _warnings.Add(
-                $"These macro hotkeys are already in use, by Stash itself or another app, so they will not run: {string.Join(", ", taken)}.");
+                $"These macro hotkeys are already taken by another application, so they will not run: {string.Join(", ", taken)}.");
         }
     }
 
@@ -242,8 +242,33 @@ public sealed class HotkeyService : IDisposable
         return true;
     }
 
+    /// <summary>True between <see cref="Suspend"/> and the next <see cref="Apply"/>.</summary>
+    public bool IsSuspended { get; private set; }
+
+    /// <summary>
+    /// Releases every chord so a window can capture one by having it pressed.
+    /// </summary>
+    /// <remarks>
+    /// A registered hotkey is consumed by Windows before any window sees it, so
+    /// without this you could not press Ctrl+Alt+V into a box while Stash owns
+    /// Ctrl+Alt+V. The chords that took effect are kept, so status displays stay
+    /// correct; call <see cref="Apply"/> to register them again.
+    /// </remarks>
+    public void Suspend()
+    {
+        foreach (var id in _registeredIds)
+        {
+            NativeMethods.UnregisterHotKey(_window.Handle, id);
+        }
+
+        _registeredIds.Clear();
+        IsSuspended = true;
+    }
+
     private void UnregisterAll()
     {
+        IsSuspended = false;
+
         foreach (var id in _registeredIds)
         {
             NativeMethods.UnregisterHotKey(_window.Handle, id);

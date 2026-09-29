@@ -1,0 +1,257 @@
+<Window x:Class="Stash.Views.HotkeysWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Stash.Views"
+        Title="Stash Hotkeys"
+        Width="600"
+        Height="760"
+        MinWidth="500"
+        MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Brush.Panel}"
+        Foreground="{DynamicResource Brush.TextPrimary}"
+        FontFamily="{DynamicResource Font.Ui}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+    <Window.Resources>
+
+        <!-- Status line under or beside a chord: quiet when fine, red when not. -->
+        <Style x:Key="StatusText" TargetType="TextBlock" BasedOn="{StaticResource SettingsCaption}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsProblem}" Value="True">
+                    <Setter Property="Foreground" Value="#FFE08A8A" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="CaptureBox" TargetType="local:HotkeyCaptureBox" BasedOn="{StaticResource SettingsTextBox}">
+            <Setter Property="Width" Value="170" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+
+        <!-- One fixed shortcut: a keycap and what it does. -->
+        <DataTemplate x:Key="FixedRowTemplate">
+            <Grid Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="132" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Style="{StaticResource KeyCap}"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Margin="0,1,10,0">
+                    <TextBlock Text="{Binding Keys}" Style="{StaticResource KeyCapText}" />
+                </Border>
+
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Description}"
+                           FontSize="12"
+                           Foreground="{DynamicResource Brush.TextSecondary}"
+                           TextWrapping="Wrap" />
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0"
+                      Padding="22,20,22,20"
+                      VerticalScrollBarVisibility="Auto">
+            <ScrollViewer.Resources>
+                <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinScrollBar}" />
+            </ScrollViewer.Resources>
+
+            <StackPanel>
+
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Margin="0,0,0,18"
+                           Text="Every shortcut Stash uses, in one place. To change one, click its box and press the new combination; Backspace clears it and Esc keeps the old one. Stash's own hotkeys pause while a box is listening, so you can press one that is currently in use. Nothing changes until you press Save." />
+
+                <!-- ==== Open the stash ====================================== -->
+                <TextBlock Text="Open the stash" Style="{StaticResource SettingsHeading}" />
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock Text="Works in any app" Style="{StaticResource SettingsLabel}" />
+                        <TextBlock x:Name="OpenStatus" Style="{StaticResource SettingsCaption}" />
+                    </StackPanel>
+
+                    <local:HotkeyCaptureBox x:Name="OpenBox"
+                                            Grid.Column="1"
+                                            Style="{StaticResource CaptureBox}" />
+                </Grid>
+
+                <Border Height="1" Background="{DynamicResource Brush.Divider}" Margin="0,20,0,18" />
+
+                <!-- ==== Quick slots ========================================= -->
+                <TextBlock Text="Quick slots" Style="{StaticResource SettingsHeading}" />
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <CheckBox x:Name="SlotsCheck"
+                                  Style="{StaticResource ThemedCheckBox}"
+                                  Content="Paste quick slots from any app" />
+                        <TextBlock Style="{StaticResource SettingsCaption}"
+                                   Text="The prefix is combined with 1 to 9. Hold the modifiers you want and press any key to set it. Put a clip in a slot with Alt+1 to 9 on its card." />
+                    </StackPanel>
+
+                    <local:HotkeyCaptureBox x:Name="PrefixBox"
+                                            Grid.Column="1"
+                                            PrefixMode="True"
+                                            Style="{StaticResource CaptureBox}" />
+                </Grid>
+
+                <ItemsControl x:Name="SlotList" Margin="0,12,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,5" Opacity="{Binding Dim}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="132" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0"
+                                        Style="{StaticResource KeyCap}"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Top"
+                                        Margin="0,1,10,0">
+                                    <TextBlock Text="{Binding Chord}" Style="{StaticResource KeyCapText}" />
+                                </Border>
+
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding Contents}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource Brush.TextSecondary}"
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="0,2,10,0" />
+
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding Status}"
+                                           Style="{StaticResource StatusText}"
+                                           MaxWidth="220"
+                                           Margin="0,2,0,0" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Border Height="1" Background="{DynamicResource Brush.Divider}" Margin="0,16,0,18" />
+
+                <!-- ==== Macros ============================================== -->
+                <TextBlock Text="Macros" Style="{StaticResource SettingsHeading}" />
+
+                <TextBlock x:Name="MacrosOffText"
+                           Style="{StaticResource SettingsCaption}"
+                           Foreground="#FFE08A8A"
+                           Margin="0,0,0,10"
+                           Visibility="Collapsed"
+                           Text="Macro hotkeys are turned off in Settings, so none of these run at the moment." />
+
+                <TextBlock x:Name="NoMacrosText"
+                           Style="{StaticResource SettingsCaption}"
+                           Margin="0,0,0,10"
+                           Visibility="Collapsed"
+                           Text="No macros yet. Record one from Settings." />
+
+                <ItemsControl x:Name="MacroList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <CheckBox Grid.Column="0"
+                                          Style="{StaticResource ThemedCheckBox}"
+                                          IsChecked="{Binding Enabled}"
+                                          VerticalAlignment="Top"
+                                          Margin="0,6,10,0"
+                                          ToolTip="Enable or disable this macro" />
+
+                                <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                                    <TextBlock Text="{Binding Name}"
+                                               Style="{StaticResource SettingsLabel}"
+                                               TextTrimming="CharacterEllipsis"
+                                               Margin="0,6,0,0" />
+                                    <TextBlock Text="{Binding Status}"
+                                               Style="{StaticResource StatusText}" />
+                                </StackPanel>
+
+                                <local:HotkeyCaptureBox Grid.Column="2"
+                                                        Style="{StaticResource CaptureBox}"
+                                                        Chord="{Binding Chord}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Button x:Name="MacroSettingsButton"
+                        Style="{StaticResource SecondaryButton}"
+                        Content="Record, edit or delete macros…"
+                        HorizontalAlignment="Left"
+                        Margin="0,4,0,0" />
+
+                <Border Height="1" Background="{DynamicResource Brush.Divider}" Margin="0,20,0,18" />
+
+                <!-- ==== Fixed ============================================== -->
+                <TextBlock Text="Inside the panel" Style="{StaticResource SettingsHeading}" />
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Margin="0,0,0,10"
+                           Text="These only work while the panel is open, and cannot be changed. A hotkey above that uses the same combination wins, and the panel shortcut stops working." />
+                <ItemsControl x:Name="PanelList" ItemTemplate="{StaticResource FixedRowTemplate}" />
+
+                <TextBlock Text="While recording a macro" Style="{StaticResource SettingsHeading}" Margin="0,14,0,10" />
+                <ItemsControl x:Name="RecorderList" ItemTemplate="{StaticResource FixedRowTemplate}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ==== Footer ================================================== -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource Brush.Divider}"
+                BorderThickness="0,1,0,0"
+                Padding="22,12,22,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="FooterText"
+                           Grid.Column="0"
+                           Style="{StaticResource SettingsCaption}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,14,0" />
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button x:Name="CloseButton"
+                            Style="{StaticResource SecondaryButton}"
+                            Content="Close"
+                            Margin="0,0,8,0" />
+                    <Button x:Name="SaveButton"
+                            Style="{StaticResource PrimaryButton}"
+                            Content="Save" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

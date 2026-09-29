@@ -88,6 +88,14 @@
                 <TextBlock Style="{StaticResource SettingsCaption}"
                            Text="Combined with the digits 1-9. With the default Ctrl+Alt, pressing Ctrl+Alt+3 pastes whatever is in quick slot 3 without opening the stash. Assign slots with Alt+1-9 on a card." />
 
+                <Button x:Name="AllHotkeysButton"
+                        Style="{StaticResource SecondaryButton}"
+                        Content="See and change all hotkeys…"
+                        HorizontalAlignment="Left"
+                        Margin="0,14,0,0" />
+                <TextBlock Style="{StaticResource SettingsCaption}"
+                           Text="Every hotkey in one list, including macros and the panel shortcuts, checked against each other as you change them." />
+
                 <Border Height="1" Background="{DynamicResource Brush.Divider}" Margin="0,22,0,20" />
 
                 <!-- ==== Macros ============================================= -->

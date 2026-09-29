@@ -33,6 +33,22 @@ public partial class SettingsWindow : Window
     /// <summary>Raised when the user asks for the targeted cleanup dialog.</summary>
     public event Action? CleanupRequested;
 
+    /// <summary>Raised when the user asks for the all-hotkeys window.</summary>
+    public event Action? HotkeysRequested;
+
+    /// <summary>
+    /// Re-reads the hotkey fields after they were changed in the hotkeys window,
+    /// so saving here afterwards does not write the old chords back.
+    /// </summary>
+    public void ShowHotkeys()
+    {
+        var s = _settings.Current;
+        HotkeyBox.Text = s.Hotkey;
+        QuickSlotsCheck.IsChecked = s.QuickSlotsEnabled;
+        QuickSlotPrefixBox.Text = s.QuickSlotModifiers;
+        ShowMacros();
+    }
+
     public SettingsWindow(
         SettingsStore settings,
         HistoryStore history,
@@ -54,6 +70,7 @@ public partial class SettingsWindow : Window
         ClearAllButton.Click += (_, _) => OnClear(includeFavorites: true);
 
         CleanupButton.Click += (_, _) => CleanupRequested?.Invoke();
+        AllHotkeysButton.Click += (_, _) => HotkeysRequested?.Invoke();
         RecordMacroButton.Click += (_, _) => RecordMacroRequested?.Invoke();
         OpenMacrosButton.Click += (_, _) => OnOpenMacros();
         ReloadMacrosButton.Click += (_, _) =>
