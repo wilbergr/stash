@@ -171,6 +171,10 @@
                            HorizontalAlignment="Left" />
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="HotkeysButton"
+                            Style="{StaticResource SecondaryButton}"
+                            Content="All hotkeys"
+                            Margin="0,0,8,0" />
                     <Button x:Name="SettingsButton"
                             Style="{StaticResource SecondaryButton}"
                             Content="Open Settings"
