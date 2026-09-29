@@ -61,6 +61,39 @@ jobs:
 
           "value=$version" >> $env:GITHUB_OUTPUT
 
+      # A published release is never overwritten. Checked before building, so
+      # re-pushing an existing tag stops at once with a reason, instead of
+      # building for several minutes and then failing on "already exists".
+      # A manual run only builds, so there it is a warning.
+      - name: Check the version is not already released
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'v${{ steps.version.outputs.value }}'
+
+          # The runner sets 'stop', and Windows PowerShell then turns the
+          # "release not found" stderr of a new version into a terminating error.
+          $ErrorActionPreference = 'Continue'
+          # "$_" turns each stderr ErrorRecord back into its plain message.
+          $out = ((gh release view $tag --json tagName 2>&1 | ForEach-Object { "$_" }) -join ' ').Trim()
+          $code = $LASTEXITCODE
+          $ErrorActionPreference = 'Stop'
+
+          if ($code -eq 0) {
+            $msg = "$tag is already published, and a published release is never overwritten. To release again, bump <Version> in src/Stash/Stash.csproj, merge it, and tag the new version."
+            if ($env:GITHUB_REF_TYPE -eq 'tag') {
+              "::error title=Already released::$msg"
+              exit 1
+            }
+            "::warning title=Already released::$msg This manual run only builds, so it carries on."
+          }
+          elseif ($out -notmatch 'not found') {
+            # Could not tell. The publish step still refuses to overwrite.
+            "::warning title=Release check skipped::Could not check whether $tag exists: $out"
+          }
+          exit 0
+
       # Two installers. build.ps1 empties dist\ on every run, so each one is
       # moved out before the next build.
       #   Stash-<v>-setup.msi                  bundles .NET; runs on any Windows PC
