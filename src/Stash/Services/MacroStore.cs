@@ -485,7 +485,7 @@ public sealed class MacroStore
                     {
                         new MacroStep { Text = "Kind regards," },
                         new MacroStep { Key = "Enter" },
-                        new MacroStep { Text = "Greg" },
+                        new MacroStep { Text = "Your name" },
                     },
                 },
                 new Macro
