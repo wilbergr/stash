@@ -25,9 +25,11 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # Majors that run on Node 24. The v4 releases targeted Node 20, which
+      # GitHub has deprecated and was forcing onto Node 24 with a warning.
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -75,25 +77,19 @@ jobs:
           .\build.ps1 -Installer -Manufacturer '${{ github.repository_owner }}'
           Move-Item "dist\Stash-$v.msi" "release\Stash-$v-framework-dependent.msi"
 
-          Get-FileHash release\*.msi -Algorithm SHA256 |
-            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
-            Set-Content release\SHA256SUMS.txt -Encoding ascii
+          # Text files are written through .NET with LF endings and no BOM.
+          # Set-Content in Windows PowerShell writes CRLF, which makes
+          # `sha256sum -c` on Linux and macOS reject every line, and its utf8
+          # encoding prepends a BOM that ends up at the start of the release notes.
+          $utf8 = New-Object System.Text.UTF8Encoding $false
 
-          Get-ChildItem release | Format-Table Name, Length
+          $sums = Get-FileHash release\*.msi -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" }
+          [IO.File]::WriteAllText("$PWD\release\SHA256SUMS.txt", (($sums -join "`n") + "`n"), $utf8)
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Stash-${{ steps.version.outputs.value }}
-          path: release/*
-          if-no-files-found: error
-
-      - name: Publish the release
-        if: github.ref_type == 'tag'
-        shell: powershell
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $v = '${{ steps.version.outputs.value }}'
+          # Written here rather than in the publish step, so a manual run
+          # produces the notes as well and they can be checked before a release.
+          New-Item -ItemType Directory notes | Out-Null
           $notes = @"
           ## Install
 
@@ -108,9 +104,27 @@ jobs:
           "protected your PC". Choose **More info**, then **Run anyway**.
           SHA256SUMS.txt lists the checksums of both files.
           "@
+          [IO.File]::WriteAllText("$PWD\notes\release-notes.md", (($notes -replace "`r`n", "`n") + "`n"), $utf8)
+
+          Get-ChildItem release, notes | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Stash-${{ steps.version.outputs.value }}
+          path: |
+            release/*
+            notes/*
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.version.outputs.value }}'
 
           # A file, not --notes: Windows PowerShell does not escape the embedded
           # quotes when passing an argument to a native program.
-          Set-Content release-notes.md $notes -Encoding utf8
           $assets = Get-ChildItem release | ForEach-Object { $_.FullName }
-          gh release create $env:GITHUB_REF_NAME @assets --title "Stash $v" --notes-file release-notes.md --generate-notes
+          gh release create $env:GITHUB_REF_NAME @assets --title "Stash $v" --notes-file notes\release-notes.md --generate-notes
