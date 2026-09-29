@@ -29,8 +29,12 @@
            Compressed="yes"
            InstallerVersion="500">
 
-    <!-- Replace an older build in place rather than stacking installs. -->
-    <MajorUpgrade DowngradeErrorMessage="A newer version of Stash is already installed. Uninstall it first if you want to go back." />
+    <!-- Replace an older build in place rather than stacking installs.
+         AllowSameVersionUpgrades covers a rebuild that kept its version number:
+         without it, Windows Installer registers the second MSI alongside the
+         first, and Installed apps shows Stash twice. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of Stash is already installed. Uninstall it first if you want to go back." />
 
     <MediaTemplate EmbedCab="yes" />
 

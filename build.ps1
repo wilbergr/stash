@@ -24,7 +24,11 @@ param(
 
     # Also build dist\Stash-<version>.msi. Requires the WiX 5 dotnet tool; the
     # script explains how to get it if it is missing.
-    [switch] $Installer
+    [switch] $Installer,
+
+    # Publisher shown in Installed apps. Defaults to the signed-in user, which
+    # on a CI runner would be a meaningless account name, so CI passes one.
+    [string] $Manufacturer = $env:USERNAME
 )
 
 Set-StrictMode -Version Latest
@@ -133,7 +137,7 @@ Version 5 is pinned here deliberately to stay on the freely licensed release.
         '-ext', 'WixToolset.UI.wixext'
         '-ext', 'WixToolset.Util.wixext'
         '-d', "ProductVersion=$version"
-        '-d', "Manufacturer=$env:USERNAME"
+        '-d', "Manufacturer=$Manufacturer"
         '-d', "SourceExe=$exe"
         '-d', "IconFile=$(Join-Path $root 'src\Stash\Assets\Stash.ico')"
         '-d', "NoticeFile=$(Join-Path $root 'installer\Notice.rtf')"
