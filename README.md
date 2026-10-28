@@ -62,8 +62,8 @@ on a managed desktop a per-machine installer is often the difference between
 Silently, if you prefer:
 
 ```powershell
-msiexec /i Stash-1.6.0-setup.msi /qn      # install
-msiexec /x Stash-1.6.0-setup.msi /qn      # uninstall
+msiexec /i Stash-1.7.0-setup.msi /qn      # install
+msiexec /x Stash-1.7.0-setup.msi /qn      # uninstall
 ```
 
 Then press `Ctrl+Alt+V`. Stash also appears in Start and under Settings →
@@ -116,7 +116,7 @@ wix extension add --global WixToolset.Util.wixext/5.0.2
 runner and publishes them as a release. To ship a version:
 
 1. Set `<Version>` in `src/Stash/Stash.csproj` and merge to `main`.
-2. Tag that commit and push the tag: `git tag v1.6.0` then `git push origin v1.6.0`.
+2. Tag that commit and push the tag: `git tag v1.7.0` then `git push origin v1.7.0`.
 
 The workflow refuses a tag that does not match `<Version>`. To try a build
 without publishing, run the workflow by hand from the Actions tab; the
