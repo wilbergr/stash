@@ -183,9 +183,34 @@ the button to reach for when you typed a long string carefully and want it to
 replay at full speed. Waits are capped at 5000 ms, and clearing the box removes
 the pause on save.
 
+**Open a program:** *Add program…* in the recorder picks an application,
+shortcut (`.lnk`) or document to open when the hotkey fires. On its own, that
+makes the hotkey a launcher — `Win+Alt+N` for Notepad++, say. Followed by a
+recording, Stash opens the program, waits up to 15 seconds for its window to
+come to the front, and types into that. Programs are opened through the shell,
+so a shortcut keeps its own arguments and start folder, and a document opens in
+its associated application. A recording made afterwards keeps the programs at
+the start of the macro.
+
+Each program step in the recorder has three settings you can edit in place:
+
+- **Arguments** — command-line flags and file names, passed as written. Quote
+  anything containing spaces. `%VARIABLES%` are expanded.
+- **Start in** — the folder the program starts in. Leave it empty for the
+  program's own folder (or, for a shortcut, the shortcut's start folder).
+- **Window** — *Normal*, *Minimized* or *Maximized*. Programs may ignore this,
+  particularly single-instance ones that are already running. *Minimized* is
+  only allowed for a macro that doesn't type afterwards, because a minimised
+  window can't receive the keystrokes.
+
+Windows reserves some chords for itself — `Win+N`, `Win+E` and most other
+`Win`+letter combinations — and won't let another app register them. Settings
+reports such a macro as taken; `Win+Alt` or `Ctrl+Alt` with the same letter
+usually works.
+
 **Or write one:** macros live in `%LOCALAPPDATA%\Stash\macros.json`, which Stash
 seeds with worked examples on first run. Each step is text to type, a key to
-press, or a pause:
+press, a pause, or a program to open:
 
 ```json
 {
@@ -207,13 +232,42 @@ press, or a pause:
         { "Text": "second field" },
         { "Key": "Enter" }
       ]
+    },
+    {
+      "Name": "Notepad++ with a header",
+      "Hotkey": "Win+Alt+N",
+      "Enabled": true,
+      "Steps": [
+        { "Launch": "%USERPROFILE%\\Desktop\\Notepad++.lnk" },
+        { "Text": "Notes" },
+        { "Key": "Enter" }
+      ]
+    },
+    {
+      "Name": "Notepad++ scratch file",
+      "Hotkey": "Win+Alt+S",
+      "Enabled": true,
+      "Steps": [
+        {
+          "Launch": "C:\\Program Files\\Notepad++\\notepad++.exe",
+          "Arguments": "-multiInst -nosession \"%USERPROFILE%\\scratch.txt\"",
+          "WorkingDirectory": "%USERPROFILE%",
+          "WindowStyle": "Maximized"
+        }
+      ]
     }
   ]
 }
 ```
 
 `Key` accepts `Tab`, `Enter`, `Esc`, `Backspace`, `Delete`, `Home`, `End`,
-arrows, `F1`–`F24`, and chords like `Ctrl+A`. Save the file, then Settings →
+arrows, `F1`–`F24`, and chords like `Ctrl+A`. `Launch` takes a full path or a
+bare name the Run dialog would understand (`notepad.exe`), and has three optional
+companions: `Arguments`, `WorkingDirectory` (a full path) and `WindowStyle`
+(`Normal`, `Minimized` or `Maximized`). Environment variables are expanded in all
+of them except `WindowStyle`. A full path that doesn't exist, a start folder that
+doesn't exist, an unknown window style, or a minimised launch followed by typing
+is rejected when the file loads. Save the file, then Settings →
 *Reload macros* (or the tray menu).
 
 Text is typed with `KEYEVENTF_UNICODE` rather than virtual-key codes, so it is
@@ -231,7 +285,10 @@ recording is running it does see everything you type.
 
 **Macros are stored as plain text and type whatever they contain.** Don't put
 passwords in them — leave those in your password manager, which Stash already
-declines to record.
+declines to record. The same goes for launch steps: whatever can edit
+`macros.json` can make a hotkey open any program you are allowed to run. That is
+no more than your own account can already do, and AppLocker or similar policy
+still decides what is allowed to start.
 
 ## Privacy
 
@@ -352,7 +409,7 @@ reset your local history and settings so card positions are deterministic; pass
 | `Test-ContentTypes` | Every kind Stash handles — plain text, multi-line text, links, colors, images and file lists — is captured with the right kind and metadata, **and** puts the original payload back on the clipboard when selected. Also asserts that clips flagged `ExcludeClipboardContentFromMonitorProcessing` or `CanIncludeInClipboardHistory=0` are never stored. |
 | `Test-Paste` | Hotkey opens the panel, arrow keys navigate, `Enter` pastes the selected clip into the app that had focus, `Ctrl+1` quick-picks, `Esc` dismisses without pasting. |
 | `Test-QuickSlots` | `Alt+1` assigns a quick slot, a slotted clip becomes a favorite, and `Ctrl+Alt+1` pastes it globally without opening the panel. |
-| `Test-Macros` | A macro hotkey types plain text, punctuation and mixed case; `Enter`, `Tab` and `Backspace` replay as real key presses; a disabled macro stays silent; and typing a macro leaves the clipboard untouched. It writes its own `macros.json` fixture and restores yours afterwards. |
+| `Test-Macros` | A macro hotkey types plain text, punctuation and mixed case; `Enter`, `Tab` and `Backspace` replay as real key presses; a disabled macro stays silent; typing a macro leaves the clipboard untouched; a launch step starts a program with its arguments, start folder and window style, then types into it; and a missing program, an unknown window style, or a minimised launch followed by typing is rejected at load. It writes its own `macros.json` fixture and restores yours afterwards. |
 | `Test-Placement` | All four dock edges on every connected monitor — 12 checks here — land inside the work area at the right offset and centring, including mixed DPI. Expected geometry is derived from the measured window, not read back from settings, so changing a default size can't silently invalidate the test. |
 
 Round-trip checks use `Alt+C` (copy without pasting) rather than `Enter`, because

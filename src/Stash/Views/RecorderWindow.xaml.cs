@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
 using Stash.Interop;
@@ -47,7 +48,7 @@ public partial class RecorderWindow : Window
             Title = $"Edit macro — {_editing.Name}";
             NameBox.Text = _editing.Name;
             HotkeyBox.Text = _editing.Hotkey;
-            _steps = _editing.Steps.Select(s => new MacroStep { Text = s.Text, Key = s.Key, DelayMs = s.DelayMs }).ToList();
+            _steps = _editing.Steps.Select(s => s.Clone()).ToList();
             SaveButton.Content = "Save changes";
         }
         else
@@ -61,6 +62,7 @@ public partial class RecorderWindow : Window
         RecordButton.Click += (_, _) => Toggle();
         UndoButton.Click += (_, _) => UndoLast();
         AddPauseButton.Click += (_, _) => AddPause();
+        AddProgramButton.Click += (_, _) => AddProgram();
         NoPausesButton.Click += (_, _) => RemovePauses();
         ClearButton.Click += (_, _) => ClearSteps();
         SaveButton.Click += (_, _) => Save();
@@ -104,11 +106,76 @@ public partial class RecorderWindow : Window
 
         public bool IsDelay => Step.DelayMs is not null;
 
-        public string Kind => IsDelay ? "wait" : !string.IsNullOrEmpty(Step.Text) ? "type" : "press";
+        public bool IsLaunch => !string.IsNullOrWhiteSpace(Step.Launch);
 
-        public string Detail => !string.IsNullOrEmpty(Step.Text)
-            ? Quote(Step.Text)
+        public string Kind => IsLaunch ? "open"
+            : IsDelay ? "wait"
+            : !string.IsNullOrEmpty(Step.Text) ? "type"
+            : "press";
+
+        public string Detail => IsLaunch ? Step.Launch!
+            : !string.IsNullOrEmpty(Step.Text) ? Quote(Step.Text)
             : Step.Key ?? "";
+
+        /// <summary>Command-line arguments for a launch step, as edited in the list.</summary>
+        public string ArgumentsText
+        {
+            get => Step.Arguments ?? "";
+            set
+            {
+                // Null rather than empty, so an unused field stays out of the file.
+                Step.Arguments = string.IsNullOrWhiteSpace(value) ? null : value;
+                Raise();
+            }
+        }
+
+        /// <summary>A launch step's start folder, as edited in the list.</summary>
+        public string WorkingDirectoryText
+        {
+            get => Step.WorkingDirectory ?? "";
+            set
+            {
+                // Not trimmed here: that would eat a space as it is typed.
+                Step.WorkingDirectory = string.IsNullOrWhiteSpace(value) ? null : value;
+                Raise();
+            }
+        }
+
+        // One flag per window-style chip. Only a chip being checked sets the
+        // style; the matching uncheck of its neighbour is ignored, so the two
+        // writes WPF makes for one click cannot undo each other.
+
+        public bool IsNormalWindow
+        {
+            get => Step.ResolveWindowStyle() is ProcessWindowStyle.Normal or null;
+            set => SetWindowStyle(value, null);
+        }
+
+        public bool IsMinimizedWindow
+        {
+            get => Step.ResolveWindowStyle() == ProcessWindowStyle.Minimized;
+            set => SetWindowStyle(value, nameof(ProcessWindowStyle.Minimized));
+        }
+
+        public bool IsMaximizedWindow
+        {
+            get => Step.ResolveWindowStyle() == ProcessWindowStyle.Maximized;
+            set => SetWindowStyle(value, nameof(ProcessWindowStyle.Maximized));
+        }
+
+        private void SetWindowStyle(bool chosen, string? style)
+        {
+            if (!chosen)
+            {
+                return;
+            }
+
+            // Normal is the default, so it is stored as nothing at all.
+            Step.WindowStyle = style;
+            Raise(nameof(IsNormalWindow));
+            Raise(nameof(IsMinimizedWindow));
+            Raise(nameof(IsMaximizedWindow));
+        }
 
         /// <summary>The pause in milliseconds, as edited in the list.</summary>
         public string DelayText
@@ -169,7 +236,10 @@ public partial class RecorderWindow : Window
         var captured = _recorder.Build();
         if (captured.Count > 0)
         {
-            _steps = captured;
+            // A recording cannot produce a launch step, so the programs opened
+            // first survive it: "open this, then type what I record" is the
+            // reason to have both.
+            _steps = LeadingLaunches().Concat(captured).ToList();
         }
 
         _recorder.Clear();
@@ -224,7 +294,7 @@ public partial class RecorderWindow : Window
 
             StatusHint.Text = _editing is not null
                 ? "Change the name or hotkey and save. To replace what it types, press Record again and type the new version — the existing steps are kept unless a new recording captures something."
-                : "Press Start, then switch to the app you want to type into. Stash captures the keys you press, turning letters into text and keys like Tab or Enter into their own steps. Nothing is saved until you click Save macro.";
+                : "Press Start, then switch to the app you want to type into. Stash captures the keys you press, turning letters into text and keys like Tab or Enter into their own steps. To have the hotkey open a program first, or only open one, use Add program. Nothing is saved until you click Save macro.";
 
             RecordButton.Content = hasSteps ? "Record again" : "Start recording";
         }
@@ -294,6 +364,50 @@ public partial class RecorderWindow : Window
         UpdateStatus();
         StepScroller.ScrollToEnd();
     }
+
+    /// <summary>
+    /// Adds a step that opens a program, shortcut or document chosen with a
+    /// file picker.
+    /// </summary>
+    /// <remarks>
+    /// Inserted after any programs already at the start rather than appended:
+    /// opening something and then typing into it is the case this is for, and a
+    /// recording made afterwards keeps those leading steps. Putting one later in
+    /// the macro is a file edit away.
+    /// </remarks>
+    private void AddProgram()
+    {
+        if (_recorder.IsRecording)
+        {
+            ErrorText.Text = "Stop recording before editing the steps.";
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Choose a program or shortcut to open",
+            Filter = "Programs and shortcuts (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|All files (*.*)|*.*",
+
+            // Keep a shortcut as the shortcut, so its arguments and start folder
+            // still apply and it follows the program if the program moves.
+            DereferenceLinks = false,
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        _steps.Insert(LeadingLaunches().Count(), new MacroStep { Launch = dialog.FileName });
+        ErrorText.Text = $"Will open {Path.GetFileName(dialog.FileName)} first.";
+
+        RefreshSteps();
+        UpdateStatus();
+    }
+
+    /// <summary>The launch steps at the start of the working set.</summary>
+    private IEnumerable<MacroStep> LeadingLaunches()
+        => _steps.TakeWhile(s => !string.IsNullOrWhiteSpace(s.Launch));
 
     /// <summary>
     /// Strips every pause, so the macro types at full speed.
@@ -371,11 +485,25 @@ public partial class RecorderWindow : Window
         // so drop those rather than persist clutter.
         _steps.RemoveAll(s => s.DelayMs is 0 && string.IsNullOrEmpty(s.Text) && string.IsNullOrWhiteSpace(s.Key));
 
+        // Launch fields are edited untrimmed so typing a space works; tidy them
+        // before they reach the file.
+        foreach (var step in _steps.Where(s => !string.IsNullOrWhiteSpace(s.Launch)))
+        {
+            step.Arguments = step.Arguments?.Trim();
+            step.WorkingDirectory = step.WorkingDirectory?.Trim();
+        }
+
         if (_steps.Count == 0)
         {
             ErrorText.Text = _editing is not null
                 ? "This macro has no steps left. Record something, or delete it from Settings."
                 : "Nothing was captured, so there is nothing to save.";
+            return;
+        }
+
+        if (MacroStore.LaunchProblem(_steps) is { } launchProblem)
+        {
+            ErrorText.Text = launchProblem;
             return;
         }
 

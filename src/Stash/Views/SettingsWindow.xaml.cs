@@ -224,6 +224,11 @@ public partial class SettingsWindow : Window
     {
         var parts = macro.Steps.Take(4).Select(s =>
         {
+            if (s.ResolveLaunchPath() is { } path)
+            {
+                return $"open {Path.GetFileName(path.TrimEnd('\\', '/'))}";
+            }
+
             if (!string.IsNullOrEmpty(s.Text))
             {
                 var t = s.Text.Replace("\r", "").Replace("\n", "\\n");
