@@ -105,15 +105,90 @@
                                                    HorizontalAlignment="Center" />
                                     </Border>
 
-                                    <!-- Text and key steps: just show them. -->
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding Detail}"
-                                               FontFamily="{DynamicResource Font.Mono}"
-                                               FontSize="11.5"
-                                               Foreground="{DynamicResource Brush.TextPrimary}"
-                                               TextWrapping="Wrap"
-                                               VerticalAlignment="Center"
-                                               Visibility="{Binding IsDelay, Converter={StaticResource InverseBoolToVis}}" />
+                                    <StackPanel Grid.Column="1"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding IsDelay, Converter={StaticResource InverseBoolToVis}}">
+                                        <!-- Text, key and launch steps: show what they are. -->
+                                        <TextBlock Text="{Binding Detail}"
+                                                   FontFamily="{DynamicResource Font.Mono}"
+                                                   FontSize="11.5"
+                                                   Foreground="{DynamicResource Brush.TextPrimary}"
+                                                   TextWrapping="Wrap" />
+
+                                        <!-- Launch steps: how to start it, editable in place. -->
+                                        <Grid Margin="0,7,0,4"
+                                              Visibility="{Binding IsLaunch, Converter={StaticResource BoolToVis}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
+                                            <TextBlock Grid.Row="0"
+                                                       Text="Arguments"
+                                                       FontSize="11.5"
+                                                       Foreground="{DynamicResource Brush.TextTertiary}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,10,0" />
+                                            <TextBox Grid.Row="0"
+                                                     Grid.Column="1"
+                                                     Style="{StaticResource SettingsTextBox}"
+                                                     MinHeight="24"
+                                                     Padding="7,2,7,2"
+                                                     FontSize="11.5"
+                                                     FontFamily="{DynamicResource Font.Mono}"
+                                                     ToolTip="Passed to the program as written. Quote anything with spaces; %VARIABLES% are expanded."
+                                                     Text="{Binding ArgumentsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                            <TextBlock Grid.Row="1"
+                                                       Text="Start in"
+                                                       FontSize="11.5"
+                                                       Foreground="{DynamicResource Brush.TextTertiary}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,5,10,0" />
+                                            <TextBox Grid.Row="1"
+                                                     Grid.Column="1"
+                                                     Style="{StaticResource SettingsTextBox}"
+                                                     MinHeight="24"
+                                                     Padding="7,2,7,2"
+                                                     Margin="0,5,0,0"
+                                                     FontSize="11.5"
+                                                     FontFamily="{DynamicResource Font.Mono}"
+                                                     ToolTip="The folder the program starts in. Leave empty for the program's own folder, or a shortcut's start folder. %VARIABLES% are expanded."
+                                                     Text="{Binding WorkingDirectoryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                            <TextBlock Grid.Row="2"
+                                                       Text="Window"
+                                                       FontSize="11.5"
+                                                       Foreground="{DynamicResource Brush.TextTertiary}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,5,10,0" />
+                                            <!-- No GroupName: each row's WrapPanel is its own group,
+                                                 where a shared name would link every launch step. -->
+                                            <WrapPanel Grid.Row="2" Grid.Column="1" Margin="0,5,0,0">
+                                                <RadioButton Style="{StaticResource SegmentChip}"
+                                                             Height="24"
+                                                             FontSize="11.5"
+                                                             Content="Normal"
+                                                             IsChecked="{Binding IsNormalWindow, Mode=TwoWay}" />
+                                                <RadioButton Style="{StaticResource SegmentChip}"
+                                                             Height="24"
+                                                             FontSize="11.5"
+                                                             Content="Minimized"
+                                                             ToolTip="Only for a macro that just opens the program: a minimised window cannot be typed into, so a macro that types afterwards will not save"
+                                                             IsChecked="{Binding IsMinimizedWindow, Mode=TwoWay}" />
+                                                <RadioButton Style="{StaticResource SegmentChip}"
+                                                             Height="24"
+                                                             FontSize="11.5"
+                                                             Content="Maximized"
+                                                             IsChecked="{Binding IsMaximizedWindow, Mode=TwoWay}" />
+                                            </WrapPanel>
+                                        </Grid>
+                                    </StackPanel>
 
                                     <!-- Pause steps are editable in place. -->
                                     <StackPanel Grid.Column="1"

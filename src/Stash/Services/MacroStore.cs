@@ -269,10 +269,12 @@ public sealed class MacroStore
     /// there is no cheap way to predict that here, so a wrong one is reported when
     /// the hotkey is pressed instead.
     /// </remarks>
-    public static string? LaunchProblem(IEnumerable<MacroStep> steps)
+    public static string? LaunchProblem(IReadOnlyList<MacroStep> steps)
     {
-        foreach (var step in steps)
+        for (var i = 0; i < steps.Count; i++)
         {
+            var step = steps[i];
+
             if (step.ResolveLaunchPath() is not { } path)
             {
                 continue;
@@ -286,6 +288,27 @@ public sealed class MacroStore
             if (Path.IsPathRooted(path) && !File.Exists(path) && !Directory.Exists(path))
             {
                 return $"'{path}' does not exist, so there is nothing to open. Check the path, or point it at a shortcut or program that is there.";
+            }
+
+            if (step.ResolveWorkingDirectory() is { } folder
+                && (folder.IndexOfAny(Path.GetInvalidPathChars()) >= 0
+                    || !Path.IsPathRooted(folder)
+                    || !Directory.Exists(folder)))
+            {
+                return $"The start folder '{step.WorkingDirectory}' is not a full path to a folder that exists.";
+            }
+
+            if (step.ResolveWindowStyle() is not { } style)
+            {
+                return $"'{step.WindowStyle}' is not a window style Stash recognises. Use Normal, Minimized or Maximized.";
+            }
+
+            // A minimised window never takes the foreground, so the runner would
+            // wait out its timeout and then refuse to type.
+            if (style == System.Diagnostics.ProcessWindowStyle.Minimized
+                && steps.Skip(i).Any(s => !string.IsNullOrEmpty(s.Text) || !string.IsNullOrWhiteSpace(s.Key)))
+            {
+                return $"This opens {Path.GetFileName(path)} minimised and then types, but a minimised window cannot be typed into. Open it Normal or Maximized, or remove the typing.";
             }
         }
 

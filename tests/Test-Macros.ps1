@@ -62,17 +62,20 @@ $logPath = Join-Path $prof 'stash.log'
 
 # --- A program for launch steps to open -------------------------------------
 # A GUI exe, so no console window comes forward first and becomes the target.
-# It shows a focused TextBox, then writes whatever was typed into it to the file
-# named on its command line and exits -- which proves the launch, the argument,
-# the wait for its window, and the typing that follows.
+# It shows a focused TextBox, then writes three lines to the file named on its
+# command line and exits: whatever was typed into it, the folder it started in,
+# and its window state. That proves the launch, the argument (with a variable
+# expanded), the start folder, the window style, the wait for its window, and
+# the typing that follows.
 $launchDir = Join-Path $env:TEMP 'stash-launch-test'
 $launchExe = Join-Path $launchDir 'LaunchTarget.exe'
 $launchOut = Join-Path $launchDir 'typed.txt'
 New-Item -ItemType Directory -Force $launchDir | Out-Null
-Remove-Item $launchOut -Force -ErrorAction SilentlyContinue
+Remove-Item $launchOut, $launchExe -Force -ErrorAction SilentlyContinue
 
-if (-not (Test-Path $launchExe)) {
-    Add-Type -OutputType WindowsApplication -OutputAssembly $launchExe -ReferencedAssemblies System.Windows.Forms -TypeDefinition @'
+# Rebuilt every run, so a copy left by an older version of this suite cannot
+# answer for the current one.
+Add-Type -OutputType WindowsApplication -OutputAssembly $launchExe -ReferencedAssemblies System.Windows.Forms -TypeDefinition @'
 using System;
 using System.IO;
 using System.Windows.Forms;
@@ -86,16 +89,17 @@ public static class LaunchTarget {
     var box = new TextBox(); box.Multiline = true; box.Dock = DockStyle.Fill;
     form.Controls.Add(box);
     var timer = new Timer(); timer.Interval = 6000;
-    timer.Tick += delegate { File.WriteAllText(args[0], box.Text); form.Close(); };
+    timer.Tick += delegate {
+      File.WriteAllText(args[0], box.Text + "\n" + Environment.CurrentDirectory + "\n" + form.WindowState);
+      form.Close();
+    };
     form.Shown += delegate { form.Activate(); box.Focus(); timer.Start(); };
     Application.Run(form);
   }
 }
 '@
-}
 
 $launchJson = $launchExe -replace '\\', '\\'
-$launchOutJson = $launchOut -replace '\\', '\\'
 
 $results = New-Object System.Collections.Generic.List[object]
 function Add-Result([string]$t,[bool]$p,[string]$n=''){ $results.Add([pscustomobject]@{ Test=$t; Pass=$p; Note=$n }) }
@@ -151,7 +155,12 @@ $fixture = @'
       "Hotkey": "Ctrl+Alt+Y",
       "Enabled": true,
       "Steps": [
-        { "Launch": "__LAUNCH_EXE__", "Arguments": "\"__LAUNCH_OUT__\"" },
+        {
+          "Launch": "__LAUNCH_EXE__",
+          "Arguments": "\"%TEMP%\\stash-launch-test\\typed.txt\"",
+          "WorkingDirectory": "%SystemRoot%",
+          "WindowStyle": "Maximized"
+        },
         { "Text": "typed after launch" }
       ]
     },
@@ -160,11 +169,26 @@ $fixture = @'
       "Hotkey": "Ctrl+Alt+Q",
       "Enabled": true,
       "Steps": [ { "Launch": "C:\\stash-test-does-not-exist\\nothing.exe" } ]
+    },
+    {
+      "Name": "Unknown window style",
+      "Hotkey": "Ctrl+Alt+X",
+      "Enabled": true,
+      "Steps": [ { "Launch": "notepad.exe", "WindowStyle": "Huge" } ]
+    },
+    {
+      "Name": "Minimised then typed",
+      "Hotkey": "Ctrl+Alt+Z",
+      "Enabled": true,
+      "Steps": [
+        { "Launch": "notepad.exe", "WindowStyle": "Minimized" },
+        { "Text": "nowhere to go" }
+      ]
     }
   ]
 }
 '@
-$fixture = $fixture.Replace('__LAUNCH_EXE__', $launchJson).Replace('__LAUNCH_OUT__', $launchOutJson)
+$fixture = $fixture.Replace('__LAUNCH_EXE__', $launchJson)
 Set-Content -Path $macrosPath -Value $fixture -Encoding UTF8
 
 # Only log lines written after this point belong to this run.
@@ -246,8 +270,12 @@ $box.Clear(); Pump 200
 [M]::CtrlAltKey('Y')
 $deadline = (Get-Date).AddSeconds(25)
 while (-not (Test-Path $launchOut) -and (Get-Date) -lt $deadline) { Pump 250 }
-$got = if (Test-Path $launchOut) { Get-Content $launchOut -Raw } else { $null }
-Add-Result 'a launch step opens the program and types into its window' ($got -eq 'typed after launch') "got '$got'"
+$lines = if (Test-Path $launchOut) { @((Get-Content $launchOut -Raw) -split "`n") } else { @() }
+$typed, $startedIn, $windowState = if ($lines.Count -eq 3) { $lines } else { '<no output>', '', '' }
+Add-Result 'a launch step opens the program and types into its window' ($typed -eq 'typed after launch') "got '$typed'"
+Add-Result 'launch arguments are passed, with variables expanded' ($lines.Count -eq 3) "no output file at $launchOut"
+Add-Result 'a launch step starts in the folder it names' ($startedIn -eq $env:SystemRoot) "started in '$startedIn'"
+Add-Result 'a launch step opens with the window style it names' ($windowState -eq 'Maximized') "window was '$windowState'"
 Add-Result 'text after a launch goes to the new window, not the old one' ($box.Text.Length -eq 0) "old window got '$($box.Text)'"
 
 }   # end of the focused branch
@@ -255,6 +283,10 @@ Add-Result 'text after a launch goes to the new window, not the old one' ($box.T
 $newLog = if (Test-Path $logPath) { @(Get-Content $logPath | Select-Object -Skip $logStart) } else { @() }
 $rejected = $newLog | Where-Object { $_ -match "Missing program" -and $_ -match 'does not exist' }
 Add-Result 'a launch step pointing at a missing file is rejected at load' ([bool]$rejected) 'no rejection logged for Missing program'
+$rejected = $newLog | Where-Object { $_ -match "Unknown window style" -and $_ -match 'not a window style' }
+Add-Result 'an unknown window style is rejected at load' ([bool]$rejected) 'no rejection logged for Unknown window style'
+$rejected = $newLog | Where-Object { $_ -match "Minimised then typed" -and $_ -match 'cannot be typed into' }
+Add-Result 'a minimised launch followed by typing is rejected at load' ([bool]$rejected) 'no rejection logged for Minimised then typed'
 
 $form.Close(); $form.Dispose()
 

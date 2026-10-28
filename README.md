@@ -192,6 +192,17 @@ so a shortcut keeps its own arguments and start folder, and a document opens in
 its associated application. A recording made afterwards keeps the programs at
 the start of the macro.
 
+Each program step in the recorder has three settings you can edit in place:
+
+- **Arguments** — command-line flags and file names, passed as written. Quote
+  anything containing spaces. `%VARIABLES%` are expanded.
+- **Start in** — the folder the program starts in. Leave it empty for the
+  program's own folder (or, for a shortcut, the shortcut's start folder).
+- **Window** — *Normal*, *Minimized* or *Maximized*. Programs may ignore this,
+  particularly single-instance ones that are already running. *Minimized* is
+  only allowed for a macro that doesn't type afterwards, because a minimised
+  window can't receive the keystrokes.
+
 Windows reserves some chords for itself — `Win+N`, `Win+E` and most other
 `Win`+letter combinations — and won't let another app register them. Settings
 reports such a macro as taken; `Win+Alt` or `Ctrl+Alt` with the same letter
@@ -231,6 +242,19 @@ press, a pause, or a program to open:
         { "Text": "Notes" },
         { "Key": "Enter" }
       ]
+    },
+    {
+      "Name": "Notepad++ scratch file",
+      "Hotkey": "Win+Alt+S",
+      "Enabled": true,
+      "Steps": [
+        {
+          "Launch": "C:\\Program Files\\Notepad++\\notepad++.exe",
+          "Arguments": "-multiInst -nosession \"%USERPROFILE%\\scratch.txt\"",
+          "WorkingDirectory": "%USERPROFILE%",
+          "WindowStyle": "Maximized"
+        }
+      ]
     }
   ]
 }
@@ -238,9 +262,12 @@ press, a pause, or a program to open:
 
 `Key` accepts `Tab`, `Enter`, `Esc`, `Backspace`, `Delete`, `Home`, `End`,
 arrows, `F1`–`F24`, and chords like `Ctrl+A`. `Launch` takes a full path or a
-bare name the Run dialog would understand (`notepad.exe`), expands environment
-variables, and has an optional `Arguments` companion. A full path that doesn't
-exist is rejected when the file loads. Save the file, then Settings →
+bare name the Run dialog would understand (`notepad.exe`), and has three optional
+companions: `Arguments`, `WorkingDirectory` (a full path) and `WindowStyle`
+(`Normal`, `Minimized` or `Maximized`). Environment variables are expanded in all
+of them except `WindowStyle`. A full path that doesn't exist, a start folder that
+doesn't exist, an unknown window style, or a minimised launch followed by typing
+is rejected when the file loads. Save the file, then Settings →
 *Reload macros* (or the tray menu).
 
 Text is typed with `KEYEVENTF_UNICODE` rather than virtual-key codes, so it is
@@ -382,7 +409,7 @@ reset your local history and settings so card positions are deterministic; pass
 | `Test-ContentTypes` | Every kind Stash handles — plain text, multi-line text, links, colors, images and file lists — is captured with the right kind and metadata, **and** puts the original payload back on the clipboard when selected. Also asserts that clips flagged `ExcludeClipboardContentFromMonitorProcessing` or `CanIncludeInClipboardHistory=0` are never stored. |
 | `Test-Paste` | Hotkey opens the panel, arrow keys navigate, `Enter` pastes the selected clip into the app that had focus, `Ctrl+1` quick-picks, `Esc` dismisses without pasting. |
 | `Test-QuickSlots` | `Alt+1` assigns a quick slot, a slotted clip becomes a favorite, and `Ctrl+Alt+1` pastes it globally without opening the panel. |
-| `Test-Macros` | A macro hotkey types plain text, punctuation and mixed case; `Enter`, `Tab` and `Backspace` replay as real key presses; a disabled macro stays silent; typing a macro leaves the clipboard untouched; a launch step starts a program; and a launch step pointing at a missing file is rejected at load. It writes its own `macros.json` fixture and restores yours afterwards. |
+| `Test-Macros` | A macro hotkey types plain text, punctuation and mixed case; `Enter`, `Tab` and `Backspace` replay as real key presses; a disabled macro stays silent; typing a macro leaves the clipboard untouched; a launch step starts a program with its arguments, start folder and window style, then types into it; and a missing program, an unknown window style, or a minimised launch followed by typing is rejected at load. It writes its own `macros.json` fixture and restores yours afterwards. |
 | `Test-Placement` | All four dock edges on every connected monitor — 12 checks here — land inside the work area at the right offset and centring, including mixed DPI. Expected geometry is derived from the measured window, not read back from settings, so changing a default size can't silently invalidate the test. |
 
 Round-trip checks use `Alt+C` (copy without pasting) rather than `Enter`, because

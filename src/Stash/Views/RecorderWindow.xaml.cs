@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
 using Stash.Interop;
@@ -112,10 +113,69 @@ public partial class RecorderWindow : Window
             : !string.IsNullOrEmpty(Step.Text) ? "type"
             : "press";
 
-        public string Detail => IsLaunch
-            ? string.IsNullOrWhiteSpace(Step.Arguments) ? Step.Launch! : $"{Step.Launch} {Step.Arguments}"
+        public string Detail => IsLaunch ? Step.Launch!
             : !string.IsNullOrEmpty(Step.Text) ? Quote(Step.Text)
             : Step.Key ?? "";
+
+        /// <summary>Command-line arguments for a launch step, as edited in the list.</summary>
+        public string ArgumentsText
+        {
+            get => Step.Arguments ?? "";
+            set
+            {
+                // Null rather than empty, so an unused field stays out of the file.
+                Step.Arguments = string.IsNullOrWhiteSpace(value) ? null : value;
+                Raise();
+            }
+        }
+
+        /// <summary>A launch step's start folder, as edited in the list.</summary>
+        public string WorkingDirectoryText
+        {
+            get => Step.WorkingDirectory ?? "";
+            set
+            {
+                // Not trimmed here: that would eat a space as it is typed.
+                Step.WorkingDirectory = string.IsNullOrWhiteSpace(value) ? null : value;
+                Raise();
+            }
+        }
+
+        // One flag per window-style chip. Only a chip being checked sets the
+        // style; the matching uncheck of its neighbour is ignored, so the two
+        // writes WPF makes for one click cannot undo each other.
+
+        public bool IsNormalWindow
+        {
+            get => Step.ResolveWindowStyle() is ProcessWindowStyle.Normal or null;
+            set => SetWindowStyle(value, null);
+        }
+
+        public bool IsMinimizedWindow
+        {
+            get => Step.ResolveWindowStyle() == ProcessWindowStyle.Minimized;
+            set => SetWindowStyle(value, nameof(ProcessWindowStyle.Minimized));
+        }
+
+        public bool IsMaximizedWindow
+        {
+            get => Step.ResolveWindowStyle() == ProcessWindowStyle.Maximized;
+            set => SetWindowStyle(value, nameof(ProcessWindowStyle.Maximized));
+        }
+
+        private void SetWindowStyle(bool chosen, string? style)
+        {
+            if (!chosen)
+            {
+                return;
+            }
+
+            // Normal is the default, so it is stored as nothing at all.
+            Step.WindowStyle = style;
+            Raise(nameof(IsNormalWindow));
+            Raise(nameof(IsMinimizedWindow));
+            Raise(nameof(IsMaximizedWindow));
+        }
 
         /// <summary>The pause in milliseconds, as edited in the list.</summary>
         public string DelayText
@@ -424,6 +484,14 @@ public partial class RecorderWindow : Window
         // A wait of zero does nothing; clearing the box is how you say "no pause",
         // so drop those rather than persist clutter.
         _steps.RemoveAll(s => s.DelayMs is 0 && string.IsNullOrEmpty(s.Text) && string.IsNullOrWhiteSpace(s.Key));
+
+        // Launch fields are edited untrimmed so typing a space works; tidy them
+        // before they reach the file.
+        foreach (var step in _steps.Where(s => !string.IsNullOrWhiteSpace(s.Launch)))
+        {
+            step.Arguments = step.Arguments?.Trim();
+            step.WorkingDirectory = step.WorkingDirectory?.Trim();
+        }
 
         if (_steps.Count == 0)
         {

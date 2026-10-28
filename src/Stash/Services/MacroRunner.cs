@@ -167,9 +167,9 @@ public sealed class MacroRunner
     /// <remarks>
     /// Shell execution rather than starting the file directly, so that a .lnk is
     /// followed with its own arguments and start folder, and a document opens in
-    /// whatever application is associated with it. The working folder is the
-    /// target's own, which is what most programs expect when launched from
-    /// Explorer.
+    /// whatever application is associated with it. Unless the step names one, the
+    /// working folder is the target's own, which is what most programs expect
+    /// when launched from Explorer.
     /// </remarks>
     private bool Launch(Macro macro, MacroStep step, string path)
     {
@@ -178,16 +178,27 @@ public sealed class MacroRunner
             var info = new ProcessStartInfo(path)
             {
                 UseShellExecute = true,
-                Arguments = step.Arguments ?? "",
+                Arguments = step.ResolveArguments(),
+
+                // Validation has already refused anything unparseable.
+                WindowStyle = step.ResolveWindowStyle() ?? ProcessWindowStyle.Normal,
             };
 
-            if (Path.IsPathRooted(path) && Path.GetDirectoryName(path) is { Length: > 0 } folder)
+            if (step.ResolveWorkingDirectory() is { } workingDirectory)
             {
+                info.WorkingDirectory = workingDirectory;
+            }
+            else if (Path.IsPathRooted(path)
+                     && !path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)
+                     && Path.GetDirectoryName(path) is { Length: > 0 } folder)
+            {
+                // A shortcut carries its own start folder; only fill one in for
+                // anything else.
                 info.WorkingDirectory = folder;
             }
 
             Process.Start(info)?.Dispose();
-            AppPaths.Log($"Macro '{macro.Name}' opened '{path}'.");
+            AppPaths.Log($"Macro '{macro.Name}' opened '{path}' ({info.WindowStyle}, in '{info.WorkingDirectory}').");
             return true;
         }
         catch (Exception ex)

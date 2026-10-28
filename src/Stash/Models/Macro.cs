@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Stash.Models;
 
 /// <summary>
@@ -66,8 +68,29 @@ public sealed class MacroStep
     /// </remarks>
     public string? Launch { get; set; }
 
-    /// <summary>Command-line arguments for <see cref="Launch"/>.</summary>
+    /// <summary>
+    /// Command-line arguments for <see cref="Launch"/>, passed as written once
+    /// environment variables are expanded.
+    /// </summary>
     public string? Arguments { get; set; }
+
+    /// <summary>
+    /// How the launched window first appears: "Normal", "Minimized" or
+    /// "Maximized". Unset means Normal.
+    /// </summary>
+    /// <remarks>
+    /// A string rather than an enum so a typo in a hand-edited file rejects
+    /// this one macro with an explanation, instead of failing to parse the
+    /// whole file. Applications are free to ignore it, and many single-instance
+    /// ones do when they are already running.
+    /// </remarks>
+    public string? WindowStyle { get; set; }
+
+    /// <summary>
+    /// Folder the program starts in. Unset means the program's own folder, or
+    /// for a shortcut, the start folder the shortcut names.
+    /// </summary>
+    public string? WorkingDirectory { get; set; }
 
     /// <summary>Literal text to type.</summary>
     public string? Text { get; set; }
@@ -87,6 +110,8 @@ public sealed class MacroStep
     {
         Launch = Launch,
         Arguments = Arguments,
+        WindowStyle = WindowStyle,
+        WorkingDirectory = WorkingDirectory,
         Text = Text,
         Key = Key,
         DelayMs = DelayMs,
@@ -99,7 +124,38 @@ public sealed class MacroStep
     /// <remarks>
     /// A method rather than a property so it is not written into macros.json.
     /// </remarks>
-    public string? ResolveLaunchPath() => string.IsNullOrWhiteSpace(Launch)
+    public string? ResolveLaunchPath() => Expand(Launch);
+
+    /// <summary><see cref="Arguments"/> with environment variables expanded.</summary>
+    /// <remarks>Quotes are kept: they group arguments that contain spaces.</remarks>
+    public string ResolveArguments() => string.IsNullOrWhiteSpace(Arguments)
+        ? ""
+        : Environment.ExpandEnvironmentVariables(Arguments.Trim());
+
+    /// <summary><see cref="WorkingDirectory"/> expanded and unquoted, or null if unset.</summary>
+    public string? ResolveWorkingDirectory() => Expand(WorkingDirectory);
+
+    /// <summary>
+    /// The parsed <see cref="WindowStyle"/>: Normal when unset, null when it is
+    /// not one of the supported values.
+    /// </summary>
+    public ProcessWindowStyle? ResolveWindowStyle()
+    {
+        if (string.IsNullOrWhiteSpace(WindowStyle))
+        {
+            return ProcessWindowStyle.Normal;
+        }
+
+        // Hidden is deliberately not offered: a hidden window cannot be seen,
+        // closed or typed into, and a hotkey that starts one is a trap.
+        return Enum.TryParse<ProcessWindowStyle>(WindowStyle.Trim(), ignoreCase: true, out var style)
+               && style != ProcessWindowStyle.Hidden
+               && Enum.IsDefined(style)
+            ? style
+            : null;
+    }
+
+    private static string? Expand(string? path) => string.IsNullOrWhiteSpace(path)
         ? null
-        : Environment.ExpandEnvironmentVariables(Launch.Trim().Trim('"'));
+        : Environment.ExpandEnvironmentVariables(path.Trim().Trim('"'));
 }
