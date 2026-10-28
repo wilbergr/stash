@@ -257,6 +257,38 @@ public sealed class MacroStore
             return $"'{badStep.Key}' is not a key Stash recognises. Try Tab, Enter, Esc, F1, Home, Left, or a chord such as Ctrl+A.";
         }
 
+        return LaunchProblem(macro.Steps);
+    }
+
+    /// <summary>
+    /// Returns why a launch step could never work, or null if they all might.
+    /// </summary>
+    /// <remarks>
+    /// Only a full path is checked. A bare name such as "notepad.exe" is resolved
+    /// by the shell at launch — through PATH and the App Paths registry — and
+    /// there is no cheap way to predict that here, so a wrong one is reported when
+    /// the hotkey is pressed instead.
+    /// </remarks>
+    public static string? LaunchProblem(IEnumerable<MacroStep> steps)
+    {
+        foreach (var step in steps)
+        {
+            if (step.ResolveLaunchPath() is not { } path)
+            {
+                continue;
+            }
+
+            if (path.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+            {
+                return $"'{step.Launch}' is not a valid path to open.";
+            }
+
+            if (Path.IsPathRooted(path) && !File.Exists(path) && !Directory.Exists(path))
+            {
+                return $"'{path}' does not exist, so there is nothing to open. Check the path, or point it at a shortcut or program that is there.";
+            }
+        }
+
         return null;
     }
 
@@ -501,6 +533,14 @@ public sealed class MacroStore
                         new MacroStep { DelayMs = 100 },
                         new MacroStep { Text = "second field" },
                     },
+                },
+                new Macro
+                {
+                    Id = Guid.NewGuid().ToString("n"),
+                    Name = "Open Notepad",
+                    Hotkey = "Ctrl+Alt+N",
+                    Enabled = false,
+                    Steps = { new MacroStep { Launch = "notepad.exe" } },
                 },
             },
         };

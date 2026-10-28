@@ -1,13 +1,15 @@
 namespace Stash.Models;
 
 /// <summary>
-/// A named sequence of keystrokes bound to a global hotkey.
+/// A named sequence of keystrokes, and optionally programs to open, bound to a
+/// global hotkey.
 /// </summary>
 /// <remarks>
 /// Macros type rather than paste. That matters for fields that reject pasted
 /// text, for remote sessions where the clipboard is not shared, and for anything
 /// that needs real key presses such as Tab between form fields. It also leaves
-/// the clipboard untouched.
+/// the clipboard untouched. A launch step lets one chord open an application,
+/// on its own or before typing into it.
 /// </remarks>
 public sealed class Macro
 {
@@ -42,16 +44,31 @@ public sealed class Macro
         Name = Name,
         Hotkey = Hotkey,
         Enabled = Enabled,
-        Steps = Steps.Select(s => new MacroStep { Text = s.Text, Key = s.Key, DelayMs = s.DelayMs }).ToList(),
+        Steps = Steps.Select(s => s.Clone()).ToList(),
     };
 }
 
 /// <summary>
-/// One action in a macro. Exactly one of the three should be set; if more than
-/// one is, they run in the order text, key, delay.
+/// One action in a macro. Exactly one of the four should be set; if more than
+/// one is, they run in the order launch, text, key, delay.
 /// </summary>
 public sealed class MacroStep
 {
+    /// <summary>
+    /// A program, shortcut or document to open, e.g. "notepad.exe" or
+    /// "%USERPROFILE%\Desktop\Notepad++.lnk".
+    /// </summary>
+    /// <remarks>
+    /// Opened through the shell, so a .lnk keeps whatever target, arguments and
+    /// start folder the shortcut carries, a document opens in its associated
+    /// application, and a bare name resolves the way the Run dialog would.
+    /// Environment variables are expanded.
+    /// </remarks>
+    public string? Launch { get; set; }
+
+    /// <summary>Command-line arguments for <see cref="Launch"/>.</summary>
+    public string? Arguments { get; set; }
+
     /// <summary>Literal text to type.</summary>
     public string? Text { get; set; }
 
@@ -61,5 +78,28 @@ public sealed class MacroStep
     /// <summary>Pause before continuing, in milliseconds.</summary>
     public int? DelayMs { get; set; }
 
-    public bool IsEmpty => string.IsNullOrEmpty(Text) && string.IsNullOrWhiteSpace(Key) && DelayMs is null;
+    public bool IsEmpty => string.IsNullOrWhiteSpace(Launch)
+                           && string.IsNullOrEmpty(Text)
+                           && string.IsNullOrWhiteSpace(Key)
+                           && DelayMs is null;
+
+    public MacroStep Clone() => new()
+    {
+        Launch = Launch,
+        Arguments = Arguments,
+        Text = Text,
+        Key = Key,
+        DelayMs = DelayMs,
+    };
+
+    /// <summary>
+    /// <see cref="Launch"/> with environment variables expanded and any
+    /// surrounding quotes removed, or null if it is not set.
+    /// </summary>
+    /// <remarks>
+    /// A method rather than a property so it is not written into macros.json.
+    /// </remarks>
+    public string? ResolveLaunchPath() => string.IsNullOrWhiteSpace(Launch)
+        ? null
+        : Environment.ExpandEnvironmentVariables(Launch.Trim().Trim('"'));
 }
