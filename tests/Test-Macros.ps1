@@ -148,7 +148,7 @@ $fixture = @'
     },
     {
       "Name": "Launch then type",
-      "Hotkey": "Ctrl+Alt+P",
+      "Hotkey": "Ctrl+Alt+Y",
       "Enabled": true,
       "Steps": [
         { "Launch": "__LAUNCH_EXE__", "Arguments": "\"__LAUNCH_OUT__\"" },
@@ -243,7 +243,7 @@ Add-Result 'typing a macro leaves the clipboard untouched' ($clip -eq 'CLIPBOARD
 # typing tests above would otherwise have to fight for.
 [void](Activate $form $box)
 $box.Clear(); Pump 200
-[M]::CtrlAltKey('P')
+[M]::CtrlAltKey('Y')
 $deadline = (Get-Date).AddSeconds(25)
 while (-not (Test-Path $launchOut) -and (Get-Date) -lt $deadline) { Pump 250 }
 $got = if (Test-Path $launchOut) { Get-Content $launchOut -Raw } else { $null }
